@@ -6,10 +6,33 @@ structured, readable description of *how* the video was edited. You can read it,
 diff it, aggregate it across many videos, and compile it back into a new video
 with your own footage and music.
 
-> **Status: work in progress.** Every module is implemented and 255 of 260 tests
-> pass. The 5 failures are in the renderer (4) and one motion edge case. The audio,
-> text, look/time-effect and benchmark modules have no tests yet, and the analyzers
-> haven't been tuned against the benchmark.
+## Status
+
+Every module is implemented and tested (382 tests, one of them opt-in). Measured accuracy:
+
+| Benchmark | Overall | Cuts F1 | Transitions | Effects F1 | Beats F | Text F1 | B&W |
+|---|---|---|---|---|---|---|---|
+| Synthetic, seeds 100–107 (held out from tuning) | 0.994 | 0.995 | 1.000 | 0.982 | 0.988 | 1.000 | 1.000 |
+| Synthetic, seeds 0–3 | 0.999 | 1.000 | 1.000 | 1.000 | 0.993 | 1.000 | 1.000 |
+
+On a real video, the [Sintel trailer](https://durian.blender.org/) (CC-BY Blender
+Foundation, 52 s), shot boundaries score precision 0.95 and recall 1.00 against
+hand labels in `tests/data/sintel_trailer_boundaries.json`. That covers fades
+through black and white, title cards and long dissolves. Its single real
+slow-motion shot (frame repeats, 0.48x) is found with no false speed effects. Its
+title cards and 11-line end credits are read with correct word spacing. The full
+analysis takes about 25 s on a laptop CPU.
+
+Analyze → re-time → render → analyze recovers the new song's tempo and every cut
+(see `test_template_loop_analyze_retime_render_reanalyze`).
+
+Known limits:
+- About a quarter of speed ramps are missed on the synthetic benchmark; speed is
+  tuned for precision over recall.
+- Long dissolves are found, but their start is placed late.
+- A dissolve into a title card is reported as a cut.
+- Thresholds were tuned on one real trailer plus synthetic edits. Real
+  TikTok/Reels footage hasn't been benchmarked yet.
 
 ## What it extracts
 
@@ -79,4 +102,5 @@ editast schema -o edit.schema.json
 
 ```bash
 python -m pytest
+EDITAST_REAL_TESTS=1 python -m pytest -k sintel   # also score the real trailer (downloads ~4 MB)
 ```

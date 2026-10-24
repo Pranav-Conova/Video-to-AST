@@ -14,9 +14,11 @@ from editast.ast import (
 from editast.bench.evaluate import boundaries, compare, format_report, similarity
 from editast.bench.generate import HOOKS, build_case, generate_case, generate_suite
 from editast.context import AnalysisConfig, load_context
-from editast.media import probe
-from editast.render.compiler import render_frames, retime_edit
+from editast.media import probe, write_wav
+from editast.pipeline import analyze
+from editast.render.compiler import render_edit, render_frames, retime_edit
 from editast.render.sources import SyntheticSource
+from editast.testing import synth
 
 SIZE = (180, 320)  # (width, height)
 FPS = 30.0
@@ -340,3 +342,24 @@ def test_similarity_compares_editing_grammar():
                                 timeline=Timeline(sections=[Section(start=0.0, end=12.0, items=slides)])))
     assert similarity(a, slideshow) < 0.5 < similarity(a, b)
     assert 0.0 <= similarity(slideshow, Edit()) <= 1.0  # degenerate edits do not crash
+
+
+# --------------------------------------------------------------------------- template loop
+
+
+def test_template_loop_analyze_retime_render_reanalyze(case, tmp_path):
+    """The template workflow end to end: analyse an edit, move its AST onto a faster
+    song, render it with other footage, and analyse the render again."""
+    mp4, _ = case
+    cfg = AnalysisConfig(enabled={"text": False})
+    template = analyze(mp4, cfg).edit
+    assert template.music is not None and template.music.bpm
+    bpm = round(template.music.bpm * 1.15, 1)
+    retimed = retime_edit(template, bpm)
+    duration = retimed.media.duration
+    song = write_wav(tmp_path / "song.wav", synth.click_track(bpm, duration + 1.0, sr=22050), 22050)
+    out = render_edit(retimed, SyntheticSource(SEED + 50), tmp_path / "remix.mp4", music=song, size=SIZE, fps=FPS)
+    remix = analyze(out, cfg).edit
+    assert remix.music.bpm == pytest.approx(bpm, abs=1.5)
+    assert compare(retimed, remix)["cuts"]["f1"] >= 0.85
+    assert similarity(template, remix) >= 0.85

@@ -138,6 +138,22 @@ def test_caption_block_is_laid_out_on_several_lines():
     assert len(bands) == 2 and all(len(b) >= 8 for b in bands)  # two text lines
 
 
+def test_explicit_line_breaks_are_kept():
+    """A stacked block ("A" over "BIG RED CAR") keeps its breaks instead of being rebalanced."""
+    edit = three_shot_edit()
+    edit.overlays = [TextOverlay(start=0.0, end=1.0, text="A\nBIG RED CAR", bbox=(0.1, 0.4, 0.8, 0.12),
+                                 size=0.06)]
+    with_text = np.stack(list(render_frames(edit, SolidSource(), size=SIZE)))
+    edit.overlays = []
+    plain = np.stack(list(render_frames(edit, SolidSource(), size=SIZE)))
+    changed = np.any(with_text[10] != plain[10], axis=2)
+    rows = np.flatnonzero(changed.any(axis=1))
+    bands = np.split(rows, np.flatnonzero(np.diff(rows) > 1) + 1)
+    assert len(bands) == 2
+    widths = [np.ptp(np.flatnonzero(changed[b].any(axis=0))) for b in bands]
+    assert widths[0] < 0.4 * widths[1]  # "A" alone on the first line
+
+
 # --------------------------------------------------------------------------- timing
 
 

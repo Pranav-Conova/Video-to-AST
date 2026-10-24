@@ -253,7 +253,8 @@ def _plan_overlay(ov: TextOverlay, fps: float) -> Optional[_OverlayPlan]:
     """Frame segments and layout of one overlay.
 
     A bbox several ``size`` lines tall (a caption block, as the text analyzer
-    reports it) is laid out as that many balanced lines at a fixed pitch.
+    reports it) is laid out as that many balanced lines at a fixed pitch;
+    newlines in the text, when present, fix the line breaks instead.
     """
     f0, f1 = frame_span(ov.start, ov.end, fps)
     x, y, bw, bh = ov.bbox
@@ -263,7 +264,16 @@ def _plan_overlay(ov: TextOverlay, fps: float) -> Optional[_OverlayPlan]:
     text = " ".join((ov.text or "").split())
     words = sorted((w for w in ov.words if w.text.strip()), key=lambda w: w.start)
     tokens = [w.text.strip() for w in words] if words else text.split()
-    lines = _wrap(tokens, n_lines)
+    # Explicit line breaks (a stacked block such as end credits) are kept as
+    # written; otherwise the words are balanced over the lines the box holds.
+    breaks = [ln.split() for ln in (ov.text or "").split("\n") if ln.strip()]
+    if len(breaks) > 1 and sum(map(len, breaks)) == len(tokens):
+        ends = np.cumsum([0] + [len(ln) for ln in breaks])
+        lines = [tokens[ends[i]:ends[i + 1]] for i in range(len(breaks))]
+        if has_box:
+            line_h = min(line_h, bh / len(lines))  # keep the lines inside the box without overlap
+    else:
+        lines = _wrap(tokens, n_lines)
     segments: list[tuple[int, int, str]] = []
     if words and ov.animation == "word_by_word":  # one word at a time, centred in the box
         for w in words:
