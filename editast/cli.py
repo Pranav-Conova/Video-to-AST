@@ -512,14 +512,22 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _configure_streams() -> None:
-    """Never crash on characters the console encoding cannot show (OCR text, emoji)."""
+    """Never crash on characters the console encoding cannot show (OCR text, emoji).
+
+    Redirected output (files, pipes) is written as UTF-8: on Windows it would
+    otherwise use the legacy code page, which has no arrows or multiplication sign.
+    """
     for stream in (sys.stdout, sys.stderr):
         reconfigure = getattr(stream, "reconfigure", None)
-        if reconfigure is not None:
-            try:
+        if reconfigure is None:
+            continue
+        try:
+            if stream.isatty():
                 reconfigure(errors="replace")
-            except (ValueError, OSError):
-                pass
+            else:
+                reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):
+            pass
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:

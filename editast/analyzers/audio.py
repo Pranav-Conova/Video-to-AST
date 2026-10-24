@@ -667,14 +667,17 @@ def _label(segs: list[_Seg], drops: list[Drop], p: ParamFn) -> None:
         while opening < first - 1 and sound[opening].level >= keep * sound[first].level:
             opening += 1
     drop_level: Optional[float] = None
+    built = False  # a build-up has started: later lulls before the drop are breaks
     for k, s in enumerate(sound):
         if first_drop is not None and s.start < first_drop - 0.05:
             if k < opening:
                 s.label, drop_level = "drop", s.level
             elif drop_level is not None:
                 s.label = "break"
+            elif s.level >= float(p("intro_level", 0.25)) * ref:
+                s.label, built = "build", True
             else:
-                s.label = "intro" if s.level < float(p("intro_level", 0.25)) * ref else "build"
+                s.label = "break" if built else "intro"
         elif s.drop:
             s.label, drop_level = "drop", s.level
         elif drop_level is not None:

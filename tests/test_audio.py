@@ -411,3 +411,14 @@ def test_runtime_60s():
     elapsed = time.perf_counter() - t0
     assert music is not None and music.bpm == pytest.approx(140, rel=0.02)
     assert elapsed < 5.0
+
+
+def test_lulls_after_the_build_up_starts_are_breaks_not_intros():
+    """Only the quiet opening is the intro; a lull between build-ups is a break."""
+    from editast.analyzers.audio import _label, _Seg
+    from editast.ast.nodes import Drop
+
+    levels = [0.1, 0.5, 0.15, 0.6, 1.0]  # intro, build, lull, build, drop
+    segs = [_Seg(float(i), float(i + 1), level=lv, drop=(i == 4)) for i, lv in enumerate(levels)]
+    _label(segs, [Drop(time=4.0)], lambda _key, default: default)
+    assert [s.label for s in segs] == ["intro", "build", "break", "build", "drop"]
