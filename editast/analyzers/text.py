@@ -173,7 +173,8 @@ class _Sample:
     edges: np.ndarray  # bool (h, w): strong edge
     frozen: bool  # most edges static: stillness does not single out overlays
     cands: list[Box]
-    focus: list[Box] = field(default_factory=list)  # frozen probes: OCR reads the rows of these boxes
+    focus: list[Box] = field(default_factory=list)  # OCR reads the rows of these boxes (see _bands)
+    grad: Optional[np.ndarray] = None  # uint8 (h, w): colour gradient, max over channels
 
 
 @dataclass(eq=False)
@@ -195,6 +196,7 @@ class _Det:
     lines: list[Box]  # member text-line boxes
     sample: Optional[_Sample] = None
     crop: Optional[_Crop] = None  # OCR'd detections: the frame around them, for the style
+    texts: list[str] = field(default_factory=list)  # OCR text of each of ``lines`` (when read)
 
     @property
     def frame(self) -> int:
@@ -241,6 +243,8 @@ class _Item:
     confidence: float
     tmpl: Optional["_Template"] = None  # None for merged items
     words: list[Word] = field(default_factory=list)
+    lines: list[tuple[Box, str]] = field(default_factory=list)  # text lines (box, text), when read
+    big: float = 0.0  # blocks of several overlays: fill height of the largest, px
 
 
 class _Budget:
@@ -340,7 +344,10 @@ def _norm(text: Optional[str]) -> str:
     return "".join(ch for ch in (text or "").upper() if ch.isalnum())
 
 
+@functools.lru_cache(maxsize=4096)
 def _levenshtein(a: str, b: str) -> int:
+    if a == b:
+        return 0
     prev = list(range(len(b) + 1))
     for i, ca in enumerate(a, 1):
         cur = [i]
@@ -372,7 +379,10 @@ def _same_text(a: Optional[str], b: Optional[str]) -> bool:
     if da and db and da != db:
         return False
     fa, fb = na.translate(_CONFUSABLE), nb.translate(_CONFUSABLE)
-    return _similarity(fa, fb) >= (1.0 if min(len(fa), len(fb)) <= 3 else 0.7)
+    need = 1.0 if min(len(fa), len(fb)) <= 3 else 0.7
+    if abs(len(fa) - len(fb)) > (1.0 - need) * max(len(fa), len(fb)):
+        return False  # the length difference alone costs more edits than allowed
+    return _similarity(fa, fb) >= need
 
 
 # --------------------------------------------------------------------------- 1-2. static edges, candidates
@@ -382,26 +392,28 @@ def _sample_rate(ctx: AnalysisContext) -> float:
     return float(min(max(ctx.config.text_fps, 1e-3), ctx.fps))
 
 
-def _static_edges(frames: np.ndarray, f: int, prm: _Params) -> tuple[np.ndarray, np.ndarray, list[np.ndarray]]:
-    """``(static, edges, diffs)`` of RGB frame ``f``: strong colour edges, those whose
-    3x3 neighbourhood is unchanged ``stable_frames`` earlier or later, and the
-    per-pixel colour change to those reference frames.
+def _static_edges(frames: np.ndarray, f: int, prm: _Params
+                  ) -> tuple[np.ndarray, np.ndarray, list[np.ndarray], np.ndarray]:
+    """``(static, edges, diffs, grad)`` of RGB frame ``f``: strong colour edges, those
+    whose 3x3 neighbourhood is unchanged ``stable_frames`` earlier or later, the
+    per-pixel colour change to those reference frames, and the colour gradient.
 
     Colour (max over channels) rather than grey: yellow captions over orange or
     red footage have little luma contrast but a large blue / green step.
     """
     rgb = frames[f]
-    edges = _channel_max(cv2.morphologyEx(rgb, cv2.MORPH_GRADIENT, _K3)) >= prm.edge_thr
+    grad = _channel_max(cv2.morphologyEx(rgb, cv2.MORPH_GRADIENT, _K3))
+    edges = grad >= prm.edge_thr
     refs = [o for o in (f - prm.stable_frames, f + prm.stable_frames) if 0 <= o < frames.shape[0]]
     if not refs:
-        return edges.copy(), edges, []
+        return edges.copy(), edges, [], grad
     stable = np.zeros(edges.shape, bool)
     diffs = [_channel_max(cv2.absdiff(rgb, frames[o])) for o in refs]
     for d in diffs:
         # Dilated difference: an edge whose neighbourhood moved by >= 1 px is not static,
         # even when the pixel itself sits inside a flat region that kept its value.
         stable |= cv2.dilate(d, _K3) <= prm.stable_tol
-    return edges & stable, edges, diffs
+    return edges & stable, edges, diffs, grad
 
 
 def _candidates(static: np.ndarray, prm: _Params) -> list[Box]:
@@ -442,9 +454,9 @@ def _is_frozen(prm: _Params, static: np.ndarray, edges: np.ndarray, diffs: list[
 
 
 def _make_sample(ctx: AnalysisContext, prm: _Params, f: int) -> _Sample:
-    static, edges, diffs = _static_edges(ctx.frames, f, prm)
+    static, edges, diffs, grad = _static_edges(ctx.frames, f, prm)
     cands = _candidates(static, prm)
-    return _Sample(f, static, edges, _is_frozen(prm, static, edges, diffs, cands), cands)
+    return _Sample(f, static, edges, _is_frozen(prm, static, edges, diffs, cands), cands, grad=grad)
 
 
 def _scan(ctx: AnalysisContext, prm: _Params) -> list[_Sample]:
@@ -520,12 +532,14 @@ def _join(a: _Det, b: _Det, block: bool) -> _Det:
     first, second = (a, b) if a.box[axis] <= b.box[axis] else (b, a)
     text = None
     if first.text is not None or second.text is not None:
-        text = " ".join(t for t in (first.text, second.text) if t)
+        # Stacked lines of a block keep their line breaks; pieces of one line join with a space.
+        text = ("\n" if block else " ").join(t for t in (first.text, second.text) if t)
     wa, wb = len(_norm(first.text)) or 1, len(_norm(second.text)) or 1
     score = (first.score * wa + second.score * wb) / (wa + wb)
     box = _union([a.box, b.box])
     lines = first.lines + second.lines if block else [box]
-    return _Det(box=box, text=text, score=score, lines=lines)
+    texts = (first.texts + second.texts if block else [text]) if text is not None else []
+    return _Det(box=box, text=text, score=score, lines=lines, texts=texts)
 
 
 def _group(dets: list[_Det], block: bool) -> list[_Det]:
@@ -554,6 +568,70 @@ def _blocks(lines: list[_Det]) -> list[_Det]:
 # --------------------------------------------------------------------------- 3. detection (OCR / classical)
 
 
+def _respace(chars: list[str], xs: np.ndarray, crop: np.ndarray) -> str:
+    """Join recognised characters (centres ``xs``, crop px), restoring the word spaces
+    the recognizer dropped ("COMINGSOON"): a space goes between two characters
+    whose centres straddle an ink-free column run that is wide for this line,
+    at least 0.3 ink heights and 1.8 times its median gap. Relative to the line's
+    own gaps, so widely tracked lettering ("S I N T E L") gets no spaces."""
+    text = "".join(chars)
+    if len(chars) < 2 or crop.size == 0:
+        return text
+    # Binarise the channel (grey, B, G or R) that splits most cleanly into two classes
+    # (Otsu's between-class / total variance): yellow text on a light sky has almost
+    # the sky's grey level but none of its blue.
+    planes = [cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)] + list(cv2.split(crop)) if crop.ndim == 3 else [crop]
+    best, bright = -1.0, None
+    for plane in planes:
+        t, _ = cv2.threshold(plane, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        hi = plane > t
+        v = plane.astype(np.float32)
+        w1 = float(hi.mean())
+        if 0.0 < w1 < 1.0 and float(v.var()) > 0:
+            sep = w1 * (1 - w1) * (float(v[hi].mean()) - float(v[~hi].mean())) ** 2 / float(v.var())
+            if sep > best:
+                best, bright = sep, hi
+    if bright is None:
+        return text
+    ink = bright if bright.mean() < 0.5 else ~bright  # text is the minority class
+    h = ink.shape[0]
+    cols = ink[int(0.15 * h):max(int(0.15 * h) + 1, int(math.ceil(0.85 * h)))].any(axis=0)
+    on = np.flatnonzero(cols)
+    ink_h = int(ink.any(axis=1).sum())
+    if on.size < 2 or ink_h < 4:
+        return text
+    gaps = np.flatnonzero(np.diff(on) > 1)
+    runs = [(int(on[i]) + 1, int(on[i + 1])) for i in gaps]  # [start, end) of empty columns
+    if not runs:
+        return text
+    thr = max(0.3 * ink_h, 1.8 * float(np.median([e - b for b, e in runs])), 2.0)
+    wide = [0.5 * (b + e) for b, e in runs if e - b >= thr]
+    out = [chars[0]]
+    for i in range(1, len(chars)):
+        if chars[i] != " " and chars[i - 1] != " " and any(xs[i - 1] < c < xs[i] for c in wide):
+            out.append(" ")
+        out.append(chars[i])
+    return "".join(out)
+
+
+def _ctc_text(pred: np.ndarray, charset: list[str], crop: np.ndarray, width: int, height: int) -> tuple[str, float]:
+    """Greedy CTC decode of one recognizer output ``(T, classes)`` (as rapidocr does),
+    with the characters' positions used to restore word spaces (:func:`_respace`).
+    The input was ``crop`` resized to ``height`` and padded to ``width``."""
+    k = pred.argmax(axis=1)
+    keep = (k != 0) & np.r_[True, k[1:] != k[:-1]]
+    ts = np.flatnonzero(keep)
+    if ts.size == 0:
+        return "", 0.0
+    # Mean over n + 1 values, the extra one ~0: rapidocr's score, which the thresholds
+    # (min_score) were set against; it discounts short readings.
+    score = float(pred.max(axis=1)[ts].sum() / (ts.size + 1))
+    h, w = crop.shape[:2]
+    resized = max(1, min(width, int(math.ceil(height * w / max(h, 1)))))
+    xs = (ts + 0.5) * (width / len(k)) * (w / resized)
+    return _respace([charset[int(c)] for c in k[ts]], xs, crop), score
+
+
 class _Ocr:
     """RapidOCR wrappers: ``det`` finds and reads lines; ``rec`` (optional) reads a
     whole crop as one line, for candidates the detector missed."""
@@ -565,6 +643,34 @@ class _Ocr:
         # be filtered in between; otherwise the whole pipeline runs at once.
         self.staged = all(hasattr(det, a) for a in ("text_detector", "sorted_boxes", "get_crop_img_list",
                                                     "text_recognizer"))
+
+    @property
+    def positions(self) -> bool:
+        """Can recognition run step by step (rapidocr internals), keeping the
+        character positions?"""
+        r = getattr(self.det, "text_recognizer", None)
+        return (self.staged and all(hasattr(r, a) for a in ("session", "resize_norm_img", "rec_batch_num",
+                                                           "postprocess_op"))
+                and hasattr(r.postprocess_op, "character"))
+
+    def recognize(self, crops: list[np.ndarray]) -> list[tuple[str, float]]:
+        """``[(text, score)]`` of BGR line crops, with word spaces restored when the
+        character positions are available."""
+        rec = self.det.text_recognizer
+        if not self.positions:
+            return [(str(t).strip(), float(sc)) for t, sc in rec(crops)[0]]
+        charset = rec.postprocess_op.character
+        out: list[tuple[str, float]] = [("", 0.0)] * len(crops)
+        order = np.argsort([c.shape[1] / max(c.shape[0], 1) for c in crops], kind="stable")
+        for b0 in range(0, len(crops), rec.rec_batch_num):
+            idx = order[b0:b0 + rec.rec_batch_num]
+            ratio = max(crops[i].shape[1] / max(crops[i].shape[0], 1) for i in idx)
+            batch = np.concatenate([rec.resize_norm_img(crops[i], ratio)[np.newaxis] for i in idx]).astype(np.float32)
+            preds = rec.session(batch)[0]
+            for i, pred in zip(idx, preds):
+                text, score = _ctc_text(pred, charset, crops[i], batch.shape[3], batch.shape[2])
+                out[i] = (text.strip(), score)
+        return out
 
     @staticmethod
     def _run(engine: Any, rgb: np.ndarray) -> list[tuple[np.ndarray, str, float]]:
@@ -586,10 +692,12 @@ class _Ocr:
                  if keep is None or keep(np.asarray(q, float))]
         if not quads:
             return []
-        rec, _ = self.det.text_recognizer(self.det.get_crop_img_list(bgr, quads))
-        return [(np.asarray(q, float), str(t).strip(), float(sc)) for q, (t, sc) in zip(quads, rec)]
+        rec = self.recognize(self.det.get_crop_img_list(bgr, quads))
+        return [(np.asarray(q, float), t, sc) for q, (t, sc) in zip(quads, rec)]
 
     def read_line(self, rgb: np.ndarray) -> tuple[str, float]:
+        if self.positions:
+            return self.recognize([cv2.cvtColor(np.ascontiguousarray(rgb), cv2.COLOR_RGB2BGR)])[0]
         res = self._run(self.rec, rgb) if self.rec is not None else []
         return (res[0][1], res[0][2]) if res else ("", 0.0)
 
@@ -628,65 +736,230 @@ def _boxes_mask(boxes: list[Box], shape: tuple[int, ...], pad: int = 0) -> np.nd
     return m
 
 
-def _unchanged(ctx: AnalysisContext, prm: _Params, a: _Sample, b: _Sample) -> bool:
-    """Would OCR of sample ``b`` return what it returned for ``a``?"""
-    ga, gb = ctx.gray[a.frame], ctx.gray[b.frame]
-    if a.frozen or b.frozen:
-        if not (a.frozen and b.frozen):
-            return False
-        # Largest mean change over ~20x20 blocks: a caption appearing is local.
-        h, w = ga.shape
-        bs = max(4.0, max(h, w) / 20.0)
-        grid = cv2.resize(cv2.absdiff(ga, gb), (max(1, round(w / bs)), max(1, round(h / bs))),
-                          interpolation=cv2.INTER_AREA)
-        return float(grid.max()) <= prm.frozen_change
-    ma, mb = _boxes_mask(a.cands, ga.shape), _boxes_mask(b.cands, gb.shape)
-    union = int((ma | mb).sum())
-    if union == 0 or (ma & mb).sum() < 0.6 * union:
-        return False
-    same = cv2.absdiff(ga, gb) <= prm.stable_tol
-    for box in a.cands:
-        x0, y0, x1, y1 = _ibox(box, ga.shape)
-        px = a.static[y0:y1, x0:x1]
-        if px.sum() < 8:
+def _blank(s: _Sample) -> bool:
+    """Hardly any edge in the frame (black, white or flat): nothing to read."""
+    return int(np.count_nonzero(s.edges)) < 8
+
+
+def _same_pixels(ctx: AnalysisContext, prm: _Params, r: _Sample, s: _Sample, box: Box) -> bool:
+    """Do the static pixels of ``s`` in ``box`` look as they did at ``r``? Judged per
+    glyph-sized column chunk: one changed character ("PART 16" -> "PART 18") is a
+    small fraction of the line but most of its own chunk."""
+    gr, gs = ctx.gray[r.frame], ctx.gray[s.frame]
+    x0, y0, x1, y1 = _ibox(box, gs.shape)
+    px = s.static[y0:y1, x0:x1]
+    if px.sum() < 8:
+        return True
+    same = cv2.absdiff(gr[y0:y1, x0:x1], gs[y0:y1, x0:x1]) <= prm.stable_tol
+    cols = np.arange(0, x1 - x0, max(2, y1 - y0))
+    n_px = np.add.reduceat(px.sum(axis=0), cols)
+    n_ok = np.add.reduceat((px & same).sum(axis=0), cols)
+    dense = n_px >= 8
+    return not (n_ok.sum() < 0.85 * n_px.sum() or (dense.any() and (n_ok[dense] / n_px[dense]).min() < 0.7))
+
+
+def _same_look(ctx: AnalysisContext, r: _Sample, s: _Sample, box: Box, shift: int = 1) -> bool:
+    """Does ``box`` show the same content at ``r`` and ``s`` up to a contrast change
+    (fade, grade) and ``shift`` px of drift (slow zoom)? Per glyph-sized column
+    chunk, the best normalised correlation over the shifts must be high, and a
+    chunk keeps or lacks texture at both: a replaced word changes the letters of
+    some chunk entirely."""
+    gr, gs = ctx.gray[r.frame], ctx.gray[s.frame]
+    h, w = gs.shape
+    x0, y0, x1, y1 = _ibox(box, gs.shape)
+    step = max(4, y1 - y0)
+    for cx in range(x0, x1, step):
+        cw = min(step, x1 - cx)
+        if cw < 3:
             continue
-        # Agreement per glyph-sized column chunk: one changed character ("PART 16" ->
-        # "PART 18") is a small fraction of the line but most of its own chunk.
-        cols = np.arange(0, x1 - x0, max(2, y1 - y0))
-        n_px = np.add.reduceat(px.sum(axis=0), cols)
-        n_ok = np.add.reduceat((px & same[y0:y1, x0:x1]).sum(axis=0), cols)
-        dense = n_px >= 8
-        if n_ok.sum() < 0.85 * n_px.sum() or (dense.any() and (n_ok[dense] / n_px[dense]).min() < 0.7):
+        a = gs[y0:y1, cx:cx + cw].astype(np.float32)
+        b = gr[y0:y1, cx:cx + cw].astype(np.float32)
+        ta, tb = float(a.std()) >= 8.0, float(b.std()) >= 8.0
+        if ta != tb:
+            return False
+        if not ta:
+            continue
+        ry0, ry1 = max(0, y0 - shift), min(h, y1 + shift)
+        rx0, rx1 = max(0, cx - shift), min(w, cx + cw + shift)
+        b = gr[ry0:ry1, rx0:rx1].astype(np.float32)
+        corr = np.nan_to_num(cv2.matchTemplate(b, a, cv2.TM_CCOEFF_NORMED), nan=0.0)
+        if float(corr.max()) < 0.8:
             return False
     return True
 
 
-def _plan_ocr(ctx: AnalysisContext, prm: _Params, samples: list[_Sample], budget: _Budget) -> list[tuple[str, int]]:
-    """Per sample: ``("ocr", k)``, ``("reuse", j)``, ``("classical", -1)`` or ``("none", -1)``.
+# Change test over still footage: an edge appeared (vanished) when its strength exceeds
+# twice the strongest edge within 1 px at the other sample plus this margin. Ratio and
+# margin let fades (contrast scaling) and compression noise pass; the 1 px slack lets
+# slow drift pass.
+_CHANGE_RATIO = 2.0
+_CHANGE_MARGIN = 32
 
-    A sample reuses the OCR result of the previous sample's chain only while
-    every sample in between showed the same text regions, so text that leaves
-    and comes back changed is always read again.
+
+def _changed(ctx: AnalysisContext, prm: _Params, ref: np.ndarray, p: _Sample, s: _Sample) -> list[Box]:
+    """Where text may differ at still sample ``s`` from what was read: text-line blobs
+    of the edges that appeared in ``s`` or vanished since the gradient ``ref``
+    (each row as it was when last read), and candidate lines of ``s`` that look
+    different from the previous sample ``p`` (a word replaced in place adds and
+    removes only fragments of letters). The look test is contrast-invariant, so
+    it compares neighbours, where drift (a slow zoom) is smallest; the edge test
+    is not, so it compares with the last read of each row, letting a slow
+    fade-in add up until it matters even while other rows are read.
+
+    Over still footage stillness cannot single out an overlay, but an overlay
+    that appears, changes or leaves adds or removes edges of its own shape, while
+    drift, fades and a moving subject do not form text lines."""
+    assert s.grad is not None
+    gr, gs = ref.astype(np.int16), s.grad.astype(np.int16)
+    near_r = cv2.dilate(ref, _K3).astype(np.int16)
+    near_s = cv2.dilate(s.grad, _K3).astype(np.int16)
+    new = (gs >= prm.edge_thr) & (gs > _CHANGE_RATIO * near_r + _CHANGE_MARGIN)
+    lost = (gr >= prm.edge_thr) & (gr > _CHANGE_RATIO * near_s + _CHANGE_MARGIN)
+    lines = [b for b in _candidates(new | lost, prm) if b[2] - b[0] >= 1.5 * (b[3] - b[1])]
+    return lines + [c for c in s.cands if not _same_look(ctx, p, s, c)]
+
+
+def _spans(boxes: list[Box], ah: int, aw: int = 0) -> Optional[list[tuple[float, float, float, float, float]]]:
+    """Bands ``(y0, y1, text height, x0, x1)`` (analysis px) that OCR reads around
+    ``boxes``; ``None`` for the whole frame (no boxes, or bands covering most of it).
+
+    A band spans the rows of its boxes plus a line height (at least 3 % of the
+    frame) above and below, and their columns plus three line heights (at least
+    8 % of the width) to either side, or the full width (``aw`` = 0, or when that
+    is most of it): text lines run horizontally, so a line partly found by the
+    candidates still fits, while footage elsewhere in the rows is not read.
     """
-    plan: list[tuple[str, int]] = []
-    last: Optional[int] = None
-    for k, s in enumerate(samples):
-        if not s.frozen and not s.cands:
-            plan.append(("none", -1))
-            last = None
-        elif last is not None and _unchanged(ctx, prm, samples[k - 1], s):
-            plan.append(("reuse", last))
+    if not boxes:
+        return None
+    spans: list[list[Any]] = []
+    for b in sorted(boxes, key=lambda b: b[1]):
+        h = b[3] - b[1]
+        pad = max(h, 0.03 * ah)
+        y0, y1 = max(0.0, b[1] - pad), min(float(ah), b[3] + pad)
+        if spans and y0 <= spans[-1][1]:
+            spans[-1][1] = max(spans[-1][1], y1)
+            spans[-1][2].append(h)
+            spans[-1][3].append(b)
         else:
-            plan.append(("ocr", k))
-            last = k
-    todo = [k for k, (kind, _) in enumerate(plan) if kind == "ocr"]
+            spans.append([y0, y1, [h], [b]])
+    if sum(y1 - y0 for y0, y1, _, _ in spans) > 0.6 * ah:
+        return None
+    out = []
+    for y0, y1, hs, bs in spans:
+        th = float(np.median(hs))
+        x0, x1 = 0.0, float(aw)
+        if aw > 0:
+            pad = max(3.0 * th, 0.08 * aw)
+            x0, x1 = max(0.0, min(b[0] for b in bs) - pad), min(float(aw), max(b[2] for b in bs) + pad)
+            if x1 - x0 > 0.7 * aw:
+                x0, x1 = 0.0, float(aw)
+        out.append((float(y0), float(y1), th, x0, x1))
+    return out
+
+
+def _rows(boxes: list[Box], ah: int) -> np.ndarray:
+    """Bool ``(ah,)``: analysis rows that a read of ``boxes`` covers."""
+    spans = _spans(boxes, ah)
+    rows = np.zeros(ah, bool)
+    if spans is None:
+        rows[:] = True
+    for y0, y1, *_ in spans or []:
+        rows[int(math.floor(y0)):int(math.ceil(y1))] = True
+    return rows
+
+
+def _hits(box: Box, rows: np.ndarray) -> bool:
+    return bool(rows[max(0, int(math.floor(box[1]))):int(math.ceil(box[3]))].any())
+
+
+def _close(focus: list[Box], pool: list[Box], ah: int) -> list[Box]:
+    """``focus`` plus the boxes of ``pool`` its read bands touch (to closure), so a
+    partial read never cuts through a text block."""
+    focus = list(focus)
+    rest = [b for b in pool if b not in focus]
+    while focus and rest:
+        rows = _rows(focus, ah)
+        add = [b for b in rest if _hits(b, rows)]
+        if not add:
+            break
+        focus += add
+        rest = [b for b in rest if b not in add]
+    return focus
+
+
+@dataclass
+class _Step:
+    """How a regular sample gets its detections.
+
+    ``ocr``: read the bands of ``sample.focus`` (or its candidates; the whole frame
+    when frozen without focus); outside the read ``rows`` the detections of sample
+    ``ref`` still hold (``ref`` < 0: nothing there). ``reuse``: the detections of
+    ``ref`` still hold. ``classical``: OCR-less detection. ``none``: no text.
+    """
+
+    kind: str
+    ref: int = -1
+    rows: Optional[np.ndarray] = None
+
+
+def _plan_ocr(ctx: AnalysisContext, prm: _Params, samples: list[_Sample], budget: _Budget) -> list[_Step]:
+    """Read only what may have changed since the last read (the *reference*).
+
+    Moving footage: candidates that the reference read covered and whose static
+    pixels are unchanged keep the reference's reading; the others are read.
+    Still footage (frozen): candidates say little, so the first sample of a run
+    is read whole; later ones read only where text-shaped edges appeared or
+    vanished since the reference (:func:`_changed`). Blank frames and moving
+    footage without candidates hold no text and end the run. Comparing with the
+    last *read* sample (not the previous sample) lets slow fades and drift add
+    up until they matter.
+    """
+    ah = ctx.gray.shape[1]
+    plan: list[_Step] = []
+    ref: Optional[int] = None
+    cover = np.zeros(ah, bool)  # rows the reference's detections describe
+    seen: Optional[np.ndarray] = None  # gradient of each row when it was last read
+    for k, s in enumerate(samples):
+        if (not s.frozen and not s.cands) or (s.frozen and _blank(s)):
+            plan.append(_Step("none"))
+            ref = None
+            continue
+        r = samples[ref] if ref is not None else None
+        if s.frozen:
+            if r is None or not cover.all() or seen is None:
+                focus, base = [], None  # whole frame
+            else:
+                focus, base = _close(_changed(ctx, prm, seen, samples[k - 1], s), s.cands, ah), ref
+                if not focus:
+                    plan.append(_Step("reuse", ref))
+                    continue
+        else:
+            fresh = [c for c in s.cands
+                     if r is None or not (cover[int(c[1]):int(math.ceil(c[3]))].all() and _same_pixels(ctx, prm, r, s, c))]
+            if not fresh:
+                plan.append(_Step("reuse", ref if ref is not None else -1))
+                continue
+            focus, base = _close(fresh, s.cands, ah), ref
+        rows = _rows(focus, ah)
+        if rows.all():
+            focus, base = ([] if s.frozen else s.cands), None
+        s.focus = focus
+        plan.append(_Step("ocr", -1 if base is None else base, rows))
+        cover = rows | (cover if base is not None else False)
+        assert s.grad is not None
+        if base is None or seen is None:
+            seen = s.grad.copy()
+        else:
+            seen[rows] = s.grad[rows]
+        ref = k
+    todo = [k for k, st in enumerate(plan) if st.kind == "ocr"]
     if len(todo) > budget.left:
-        # Over budget: OCR an even spread, the rest falls back to the classical detector.
+        # Over budget: OCR an even spread, the rest falls back to the classical detector
+        # (as does every sample whose reading depends on a dropped one, see _detect).
         keep = {todo[i] for i in np.linspace(0, len(todo) - 1, budget.left).round().astype(int)} if budget.left else set()
-        dropped = set(todo) - keep
-        plan = [("classical", -1) if (kind == "ocr" and k in dropped) or (kind == "reuse" and ref in dropped)
-                else (kind, ref) for k, (kind, ref) in enumerate(plan)]
-    budget.left -= sum(1 for kind, _ in plan if kind == "ocr")
+        for k in set(todo) - keep:
+            plan[k] = _Step("classical")
+    budget.left -= sum(1 for st in plan if st.kind == "ocr")
     return plan
 
 
@@ -740,27 +1013,17 @@ def _iter_hires(ctx: AnalysisContext, samples: list[_Sample], wanted: set[int]) 
         yield k, ctx.frames[samples[k].frame]
 
 
-def _bands(s: _Sample, ah: int, fh: int) -> list[tuple[int, int, float]]:
-    """Row bands ``(y0, y1, text height)`` of a frame of height ``fh`` around the
-    candidates of ``s``, or its focus boxes when frozen (the whole frame, text
-    height unknown = 0, when there are none)."""
-    boxes = s.focus if s.frozen else s.cands
-    if not boxes:
-        return [(0, fh, 0.0)]
-    sy = fh / ah
-    spans: list[list[Any]] = []
-    for b in sorted(boxes, key=lambda b: b[1]):
-        h = (b[3] - b[1]) * sy
-        pad = max(h, 0.03 * fh)
-        y0, y1 = max(0, int(b[1] * sy - pad)), min(fh, int(math.ceil(b[3] * sy + pad)))
-        if spans and y0 <= spans[-1][1]:
-            spans[-1][1] = max(spans[-1][1], y1)
-            spans[-1][2].append(h)
-        else:
-            spans.append([y0, y1, [h]])
-    if sum(y1 - y0 for y0, y1, _ in spans) > 0.6 * fh:
-        return [(0, fh, 0.0)]
-    return [(int(y0), int(y1), float(np.median(hs))) for y0, y1, hs in spans]
+def _bands(s: _Sample, ah: int, aw: int, fh: int, fw: int) -> list[tuple[int, int, int, int, float]]:
+    """Bands ``(y0, y1, x0, x1, text height)`` of a frame of size ``fw`` x ``fh`` around
+    the focus boxes of ``s`` (its candidates when it has none and is not frozen);
+    the whole frame, text height unknown = 0, when a frozen sample has no focus."""
+    boxes = s.focus if (s.frozen or s.focus) else s.cands
+    spans = _spans(boxes, ah, aw)
+    if spans is None:
+        return [(0, fh, 0, fw, 0.0)]
+    sy, sx = fh / ah, fw / aw
+    return [(max(0, int(y0 * sy)), min(fh, int(math.ceil(y1 * sy))), max(0, int(x0 * sx)),
+             min(fw, int(math.ceil(x1 * sx))), h * sy) for y0, y1, h, x0, x1 in spans]
 
 
 def _accept(prm: _Params, s: _Sample, box: Box, text: str, score: float, ah: int) -> bool:
@@ -775,18 +1038,24 @@ def _ocr_sample(ctx: AnalysisContext, prm: _Params, s: _Sample, frame: np.ndarra
     fh, fw = frame.shape[:2]
     sx, sy = aw / fw, ah / fh
     base_up = max(1.0, _OCR_MIN_SIDE / max(fh, fw))
+    bands = _bands(s, ah, aw, fh, fw)
+    # The detector misses short words below ~40 px: upscale small text (at most 3x), but
+    # never past the cost (pixels) of reading the whole frame.
+    ups = [base_up if text_h <= 0 else float(np.clip(_OCR_TEXT_PX / text_h, base_up, 3.0)) for *_, text_h in bands]
+    cost = sum((y1 - y0) * (x1 - x0) * up * up for (y0, y1, x0, x1, _), up in zip(bands, ups))
+    if cost > fh * fw * base_up * base_up:
+        shrink = math.sqrt(fh * fw * base_up * base_up / cost)
+        ups = [max(base_up, up * shrink) for up in ups]
     lines: list[_Det] = []
-    for y0, y1, text_h in _bands(s, ah, fh):
-        # The detector misses short words below ~40 px: upscale small text (at most 3x).
-        up = base_up if text_h <= 0 else float(np.clip(_OCR_TEXT_PX / text_h, base_up, 3.0))
-        crop = frame[y0:y1]
+    for (y0, y1, x0, x1, _), up in zip(bands, ups):
+        crop = frame[y0:y1, x0:x1]
         if up > 1.0:
             crop = cv2.resize(crop, None, fx=up, fy=up, interpolation=cv2.INTER_CUBIC)
 
-        def to_box(quad: np.ndarray, up: float = up, y0: int = y0) -> Box:
+        def to_box(quad: np.ndarray, up: float = up, y0: int = y0, x0: int = x0) -> Box:
             q = quad / up
-            return (float(q[:, 0].min() * sx), float((q[:, 1].min() + y0) * sy),
-                    float(q[:, 0].max() * sx), float((q[:, 1].max() + y0) * sy))
+            return (float((q[:, 0].min() + x0) * sx), float((q[:, 1].min() + y0) * sy),
+                    float((q[:, 0].max() + x0) * sx), float((q[:, 1].max() + y0) * sy))
 
         def plausible(quad: np.ndarray) -> bool:
             box = to_box(quad)
@@ -795,12 +1064,12 @@ def _ocr_sample(ctx: AnalysisContext, prm: _Params, s: _Sample, frame: np.ndarra
         for quad, text, score in ocr.read(crop, keep=plausible):
             box = to_box(quad)
             if _accept(prm, s, box, text, score, ah):
-                lines.append(_Det(box=box, text=text, score=score, lines=[box]))
+                lines.append(_Det(box=box, text=text, score=score, lines=[box], texts=[text]))
     if not s.frozen:
         # Overlay-like candidates the detector did not cover (short words), largest first:
         # read each as one line. A candidate holding a detected line is covered (it is
         # that line plus footage).
-        missed = [b for b in s.cands
+        missed = [b for b in (s.focus or s.cands)
                   if not any(_area(_intersect(b, d.box)) >= 0.5 * min(_area(b), _area(d.box)) for d in lines)
                   and _support(s, b) >= prm.min_stable and _stiller_than_ring(s, b, prm)]
         for b in sorted(missed, key=_area, reverse=True)[:prm.max_line_reads]:
@@ -813,7 +1082,7 @@ def _ocr_sample(ctx: AnalysisContext, prm: _Params, s: _Sample, frame: np.ndarra
                 crop = cv2.resize(crop, None, fx=f, fy=f, interpolation=cv2.INTER_CUBIC)
             text, score = ocr.read_line(crop)
             if len(_norm(text)) >= 2 and _accept(prm, s, b, text, score, ah):
-                lines.append(_Det(box=b, text=text, score=score, lines=[b]))
+                lines.append(_Det(box=b, text=text, score=score, lines=[b], texts=[text]))
     blocks = _blocks(lines)
     for d in blocks:
         # The sharpest view of the block, kept for the style estimate (colour, outline, size).
@@ -840,27 +1109,41 @@ def _stamp(dets: list[_Det], s: _Sample) -> list[_Det]:
     return dets
 
 
+def _holds(ctx: AnalysisContext, prm: _Params, d: _Det, s: _Sample) -> bool:
+    """Is detection ``d`` (of an earlier sample) still on screen at ``s``? Over still
+    footage the change test already said so; over moving footage its static
+    pixels must still agree."""
+    return s.frozen or _agreement(ctx, prm, d, s.frame) >= 0.7
+
+
 def _detect(ctx: AnalysisContext, prm: _Params, samples: list[_Sample], ocr: Optional[_Ocr],
             budget: _Budget) -> dict[_Sample, list[_Det]]:
-    """Detections of the regular samples (OCR'd, reused or classical)."""
+    """Detections of the regular samples (OCR'd, partly or wholly reused, or classical)."""
     if ocr is None:
-        plan = [("classical", -1)] * len(samples)
+        plan = [_Step("classical")] * len(samples)
     else:
         plan = _plan_ocr(ctx, prm, samples, budget)
-    wanted = {k for k, (kind, _) in enumerate(plan) if kind == "ocr"}
+    wanted = {k for k, st in enumerate(plan) if st.kind == "ocr"}
     read: dict[int, list[_Det]] = {}
     if ocr is not None:
         for k, frame in _iter_hires(ctx, samples, wanted):
-            read[k] = _ocr_sample(ctx, prm, samples[k], frame, ocr)
+            read[k] = _stamp(_ocr_sample(ctx, prm, samples[k], frame, ocr), samples[k])
+    held: dict[int, list[_Det]] = {}  # per read sample: what is on screen (detections keep their own sample)
     out: dict[_Sample, list[_Det]] = {}
-    for s, (kind, ref) in zip(samples, plan):
-        if kind in ("ocr", "reuse"):
-            dets = [replace(d, lines=list(d.lines)) for d in read.get(ref, [])]
-        elif kind == "classical":
-            dets = _classical_sample(prm, s)
-        else:
+    for k, (s, st) in enumerate(zip(samples, plan)):
+        dets: Optional[list[_Det]] = None
+        base = held.get(st.ref) if st.ref >= 0 else []
+        if st.kind == "ocr" and k in read and base is not None:
+            assert st.rows is not None
+            dets = read[k] + [d for d in base if not _hits(d.box, st.rows) and _holds(ctx, prm, d, s)]
+            held[k] = dets
+        elif st.kind == "reuse" and base is not None:
+            dets = [d for d in base if _holds(ctx, prm, d, s)]
+        elif st.kind == "none":
             dets = []
-        out[s] = _stamp(dets, s)
+        if dets is None:
+            dets = _classical_sample(prm, s)
+        out[s] = _stamp([replace(d, lines=list(d.lines)) for d in dets], s)
     return out
 
 
@@ -993,20 +1276,27 @@ class _Template:
         # to the strokes can look static for a moment but not for the overlay's lifetime.
         self.mask = ((votes >= max(1, math.ceil(0.5 * len(sources))))
                      & (stack.max(axis=0) - stack.min(axis=0) <= prm.still_tol))
-        self._polarity()
+        self._polarity(prm.presence_tol)
 
-    def _polarity(self) -> None:
+    def _polarity(self, tol: float) -> None:
+        """Bright / dark classes of the stroke mask and the grey tolerance ``self.tol``
+        of the presence test: at most half the contrast between the classes, so
+        footage that shows one class's value (dark footage under dim text) does
+        not pass for the text. Classes at least two tolerances apart are tested
+        separately (``split``)."""
         vals = self.gray[self.mask]
         self.bright = np.zeros_like(self.mask)
         self.dark = np.zeros_like(self.mask)
         self.split = False
+        self.tol = tol
         if vals.size >= 8:
             t = _otsu(vals)
             self.bright = self.mask & (self.gray > t)
             self.dark = self.mask & ~self.bright
             nb, nd = int(self.bright.sum()), int(self.dark.sum())
-            self.split = (min(nb, nd) >= 0.2 * vals.size
-                          and float(self.gray[self.bright].mean() - self.gray[self.dark].mean()) >= 60.0)
+            contrast = float(self.gray[self.bright].mean() - self.gray[self.dark].mean()) if nb and nd else 0.0
+            self.tol = float(np.clip(0.5 * contrast, min(10.0, tol), tol))
+            self.split = min(nb, nd) >= 0.2 * vals.size and contrast >= 2.0 * self.tol
 
     @property
     def center(self) -> tuple[float, float]:
@@ -1025,9 +1315,9 @@ class _Template:
             return float(min(ok[bright].mean(), ok[dark].mean()))
         return float(ok[mask].mean())
 
-    def presence(self, gray: np.ndarray, frame: int, tol: float) -> float:
+    def presence(self, gray: np.ndarray, frame: int) -> float:
         g = self._patch(gray, frame)
-        return self._score(g, self.gray, self.mask, self.bright, self.dark, self.split, tol)
+        return self._score(g, self.gray, self.mask, self.bright, self.dark, self.split, self.tol)
 
     def visible(self, gray: np.ndarray, frame: int, prm: _Params, thr: float) -> Optional[bool]:
         """Is the template on screen in ``frame``? ``None`` when the patch is flat
@@ -1035,7 +1325,7 @@ class _Template:
         g = self._patch(gray, frame)
         if float(g.std()) < 6.0:
             return None
-        if self._score(g, self.gray, self.mask, self.bright, self.dark, self.split, prm.presence_tol) >= thr:
+        if self._score(g, self.gray, self.mask, self.bright, self.dark, self.split, self.tol) >= thr:
             return True
         # Flashes, fades and grades shift the pixel values but keep the text's own contrast.
         gain, corr = self._regress(g)
@@ -1126,7 +1416,7 @@ def _refine(ctx: AnalysisContext, prm: _Params, tracks: list[_Track], neutral: n
     _close_neutral_gaps(tracks, boxes, neutral)
     for i, tr in enumerate(tracks):
         tr.core = (tr.start, tr.end)
-        same = [o for j, o in enumerate(tracks) if j != i and _overlapping(boxes[j], boxes[i])]
+        same = [o for j, o in enumerate(tracks) if j != i and _area(_intersect(boxes[j], boxes[i])) > 0]
         # Entrance / exit animations never reach into another overlay in the same place.
         floor = max([o.end for o in same if o.start < tr.start], default=0)
         ceil = min([o.start for o in same if o.end > tr.end], default=n)
@@ -1142,7 +1432,7 @@ def _fit(ctx: AnalysisContext, prm: _Params, tr: _Track, tmpl: "_Template", lo: 
     detections while the template stays visible (two misses end it; neutral
     frames neither extend nor end it)."""
     tr.tmpl = tmpl
-    tr.p_in = float(np.median([tmpl.presence(ctx.gray, d.frame, prm.presence_tol) for d in tr.dets]))
+    tr.p_in = float(np.median([tmpl.presence(ctx.gray, d.frame) for d in tr.dets]))
     thr = max(prm.presence_floor, prm.presence_ratio * tr.p_in)
 
     def scan(frames: range) -> Optional[int]:
@@ -1166,7 +1456,6 @@ def _fit(ctx: AnalysisContext, prm: _Params, tr: _Track, tmpl: "_Template", lo: 
 def _split_neighbours(ctx: AnalysisContext, prm: _Params, tracks: list[_Track], boxes: list[Box]) -> None:
     """Consecutive tracks in one place that overlap in time after refinement (e.g. a
     typewriter state contained in the next) are cut where their templates swap."""
-    tol = prm.presence_tol
     for i, a in enumerate(tracks):
         for j in range(i + 1, len(tracks)):
             b = tracks[j]
@@ -1177,7 +1466,7 @@ def _split_neighbours(ctx: AnalysisContext, prm: _Params, tracks: list[_Track], 
                 a.end, b.start = lo, lo
                 continue
             assert a.tmpl is not None and b.tmpl is not None
-            diff = np.array([a.tmpl.presence(ctx.gray, f, tol) - b.tmpl.presence(ctx.gray, f, tol)
+            diff = np.array([a.tmpl.presence(ctx.gray, f) - b.tmpl.presence(ctx.gray, f)
                              for f in range(lo, hi)])
             # Cut c maximises sum(diff[:c]) - sum(diff[c:]).
             gain = np.concatenate([[0.0], np.cumsum(diff)])
@@ -1381,18 +1670,49 @@ def _probes(ctx: AnalysisContext, prm: _Params, samples: list[_Sample], tracks: 
     return out
 
 
+def _known(ctx: AnalysisContext, prm: _Params, s: _Sample, samples: list[_Sample],
+           dets: dict[_Sample, list[_Det]]) -> Optional[list[_Det]]:
+    """What a read of probe ``s`` would find when that is known already: nothing on a
+    blank band, else the detections of a neighbouring sample showing the same
+    thing in the band (see :func:`_changed`, :func:`_same_pixels`). A still
+    neighbour that found nothing there does not count: its whole-frame read may
+    have missed a short word that a band read finds."""
+    ah = ctx.gray.shape[1]
+    rows = _rows(s.focus or s.cands, ah)
+    if s.frozen and int(np.count_nonzero(s.edges[rows])) < 8:
+        return []
+    i = int(np.searchsorted([o.frame for o in samples], s.frame))
+    for n in sorted(samples[max(0, i - 1):i + 1], key=lambda o: abs(o.frame - s.frame)):
+        if n.frame == s.frame or n not in dets:
+            continue
+        mine = [d for d in dets[n] if _hits(d.box, rows)]
+        if s.frozen:
+            assert n.grad is not None
+            if not mine or any(_hits(b, rows) for b in _changed(ctx, prm, n.grad, n, s)):
+                continue
+        elif not all(_same_pixels(ctx, prm, n, s, c) for c in s.cands) or                 not all(_agreement(ctx, prm, d, s.frame) >= 0.7 for d in mine):
+            continue
+        return [replace(d, lines=list(d.lines)) for d in mine]
+    return None
+
+
 def _detect_probes(ctx: AnalysisContext, prm: _Params, probes: list[_Sample], ocr: Optional[_Ocr],
-                   budget: _Budget) -> dict[_Sample, list[_Det]]:
-    """Probes are OCR'd on the analysis frames (no extra decode) while the budget lasts."""
+                   budget: _Budget, samples: list[_Sample], dets: dict[_Sample, list[_Det]]
+                   ) -> dict[_Sample, list[_Det]]:
+    """Probes are OCR'd on the analysis frames (no extra decode) while the budget lasts,
+    unless what they would find is known (:func:`_known`)."""
     out: dict[_Sample, list[_Det]] = {}
     for s in probes:
-        if ocr is not None and budget.take():
-            dets = _ocr_sample(ctx, prm, s, ctx.frames[s.frame], ocr)
+        found = _known(ctx, prm, s, samples, dets) if ocr is not None else None
+        if found is not None:
+            pass
+        elif ocr is not None and budget.take():
+            found = _ocr_sample(ctx, prm, s, ctx.frames[s.frame], ocr)
         elif s.frozen:
-            dets = []  # over still footage stillness cannot single out an overlay
+            found = []  # over still footage stillness cannot single out an overlay
         else:
-            dets = _classical_sample(prm, s)
-        out[s] = _stamp(dets, s)
+            found = _classical_sample(prm, s)
+        out[s] = _stamp(found, s)
     return out
 
 
@@ -1454,7 +1774,12 @@ def _style(ctx: AnalysisContext, prm: _Params, tr: _Track) -> tuple[Optional[RGB
     if found is None:
         return None, None, 0.7 * lh, box  # OCR / edge boxes are ~1.4 glyph heights tall
     color, outline, fill_h, ink = found
-    return color, outline, fill_h / sy, (x0 + ink[0] / sx, y0 + ink[1] / sy, x0 + ink[2] / sx, y0 + ink[3] / sy)
+    fill_h /= sy
+    if fill_h < 0.35 * lh:
+        # Thin or dim lettering can leave only a sliver of "fill"; the text cannot be much
+        # smaller than the line boxes OCR / the edges found for it.
+        fill_h = 0.7 * lh
+    return color, outline, fill_h, (x0 + ink[0] / sx, y0 + ink[1] / sy, x0 + ink[2] / sx, y0 + ink[3] / sy)
 
 
 def _hires_views(tr: _Track, region: tuple[int, int, int, int]) -> tuple[Optional[np.ndarray], float, float]:
@@ -1567,7 +1892,13 @@ def _appearance(prm: _Params, rgb: np.ndarray, tight: tuple[int, int, int, int],
 def _best_text(dets: list[_Det]) -> Optional[str]:
     votes: dict[str, float] = {}
     best: dict[str, _Det] = {}
+    seen: set[int] = set()
     for d in dets:
+        # One vote per OCR read: samples that reuse a reading share its crop.
+        read = id(d.crop) if d.crop is not None else id(d)
+        if read in seen:
+            continue
+        seen.add(read)
         # Readings that differ only by confusable glyphs vote together; the most
         # confident one of the winning group is reported.
         key = _norm(d.text).translate(_CONFUSABLE)
@@ -1584,8 +1915,11 @@ def _best_text(dets: list[_Det]) -> Optional[str]:
 def _item(ctx: AnalysisContext, prm: _Params, tr: _Track) -> _Item:
     color, outline, fill_h, ink = _style(ctx, prm, tr)
     conf = float(np.clip(np.mean([d.score for d in tr.dets]) * min(1.0, tr.p_in / 0.8), 0.0, 1.0))
-    return _Item(start=tr.start, end=tr.end, box=ink, text=_best_text(tr.dets), fill_h=fill_h, color=color,
-                 outline=outline, animation=tr.animation, confidence=conf, tmpl=tr.tmpl)
+    text = _best_text(tr.dets)
+    src = next((d for d in tr.dets if d.text == text and len(d.texts) == len(d.lines)), None)
+    lines = list(zip(src.lines, src.texts)) if src is not None and text else []
+    return _Item(start=tr.start, end=tr.end, box=ink, text=text, fill_h=fill_h, color=color,
+                 outline=outline, animation=tr.animation, confidence=conf, tmpl=tr.tmpl, lines=lines)
 
 
 def _same_place(a: _Item, b: _Item) -> bool:
@@ -1684,6 +2018,74 @@ def _merge(items: list[_Item], chain: list[int], kind: TextAnimation, fps: float
     )
 
 
+def _reading_order(lines: list[tuple[Box, str]]) -> str:
+    """Text of ``lines`` (box, text): rows top to bottom (lines sharing a band form a
+    row, read left to right), joined by newlines."""
+    rows: list[list[tuple[Box, str]]] = []
+    for box, text in sorted(lines, key=lambda bt: 0.5 * (bt[0][1] + bt[0][3])):
+        if rows and any(_same_band(box, b) for b, _ in rows[-1]):
+            rows[-1].append((box, text))
+        else:
+            rows.append([(box, text)])
+    return "\n".join(" ".join(t for _, t in sorted(row, key=lambda bt: bt[0][0])) for row in rows)
+
+
+def _stack(items: list[_Item], fps: float) -> list[_Item]:
+    """Merge overlays that appear and disappear together and sit next to each other
+    (the stacked lines of a credit card, a title over its subtitle) into one block:
+    text in reading order (rows joined by newlines), bbox the union.
+
+    Together: start and end agree within 0.1 s. Next to each other: stacked
+    (vertical gap up to 2.5 glyph heights, as credits are spaced; overlapping
+    columns) or on one row (horizontal gap up to 3 line heights). Word-by-word
+    and typewriter overlays never join."""
+    tol = max(2, int(round(0.1 * fps)))
+    parent = list(range(len(items)))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    def near(a: _Item, b: _Item) -> bool:
+        gh = max(a.fill_h, b.fill_h, 1.0)
+        vgap = max(a.box[1], b.box[1]) - min(a.box[3], b.box[3])
+        hgap = max(a.box[0], b.box[0]) - min(a.box[2], b.box[2])
+        return (vgap <= 2.5 * gh and hgap < 0) or (_same_band(a.box, b.box) and hgap <= 4.2 * gh)
+
+    loose = [i for i, it in enumerate(items) if it.animation not in ("word_by_word", "typewriter")]
+    for x, i in enumerate(loose):
+        for j in loose[x + 1:]:
+            a, b = items[i], items[j]
+            if abs(a.start - b.start) <= tol and abs(a.end - b.end) <= tol and near(a, b):
+                parent[find(i)] = find(j)
+    groups: dict[int, list[int]] = {}
+    for i in range(len(items)):
+        groups.setdefault(find(i), []).append(i)
+    out = []
+    for members in groups.values():
+        if len(members) == 1:
+            out.append(items[members[0]])
+            continue
+        parts = [items[i] for i in members]
+        lines = [ln for pt in parts for ln in (pt.lines or ([(pt.box, pt.text)] if pt.text else []))]
+        colors = [pt.color for pt in parts if pt.color is not None]
+        outlines = [pt.outline for pt in parts if pt.outline is not None]
+        anims = {pt.animation for pt in parts}
+        out.append(_Item(
+            start=min(pt.start for pt in parts), end=max(pt.end for pt in parts), box=_union([pt.box for pt in parts]),
+            text=_reading_order(lines) if lines else None,
+            fill_h=float(np.median([pt.fill_h for pt in parts])),
+            color=tuple(int(c) for c in np.median(np.array(colors), axis=0)) if colors else None,
+            outline=(sum(outlines) * 2 >= len(outlines)) if outlines else None,
+            animation=anims.pop() if len(anims) == 1 else "static",
+            confidence=float(np.mean([pt.confidence for pt in parts])), lines=lines,
+            big=max(max(pt.big, pt.fill_h) for pt in parts),
+        ))
+    return sorted(out, key=lambda it: it.start)
+
+
 def _position(cy: float) -> TextPosition:
     if cy < 0.2:
         return "top"
@@ -1697,21 +2099,32 @@ def _position(cy: float) -> TextPosition:
 
 
 def _role(it: _Item, items: list[_Item], prm: _Params, ctx: AnalysisContext, size: float) -> TextRole:
+    """Role from timing, place, size and company.
+
+    Captions are word-by-word, or one of a series (3+) of overlays in the same
+    place and style; titles are large, long, or a title card (centred and alone
+    on screen); a block of several overlays is a title when it holds a
+    title-size line, else a label (credits)."""
     h, w = ctx.gray.shape[1:]
+    line, _, _ = _draw_metrics()
     cx, cy = 0.5 * (it.box[0] + it.box[2]) / w, 0.5 * (it.box[1] + it.box[3]) / h
     pos = _position(cy)
     cover = (it.end - it.start) / max(ctx.n_frames, 1)
     corner = (cx < 0.3 or cx > 0.7) and (cy < 0.2 or cy > 0.8)
-    frequent = sum(1 for o in items if abs(0.5 * (o.box[1] + o.box[3]) / h - cy) <= 0.08) >= 3
+    series = sum(1 for o in items if o is it or _same_place(o, it)) >= 3
+    alone = not any(o is not it and o.start < it.end and it.start < o.end for o in items)
+    block = it.big > 0
     if size <= prm.watermark_size and corner and cover >= prm.watermark_cover:
         return "watermark"
     if it.animation in ("word_by_word", "typewriter") and pos != "top":
         return "caption"
     if ctx.t(it.start) <= prm.hook_time and pos in ("top", "upper", "center"):
         return "hook"
-    if frequent and pos in ("center", "lower", "bottom"):
+    if block:
+        return "title" if it.big * line / h >= prm.title_size else "label"
+    if series and pos in ("center", "lower", "bottom"):
         return "caption"
-    if size >= prm.title_size or cover >= 0.3:
+    if size >= prm.title_size or cover >= 0.3 or (alone and abs(cx - 0.5) <= 0.1 and pos in ("upper", "center", "lower")):
         return "title"
     if size <= prm.label_size:
         return "label"
@@ -1764,12 +2177,12 @@ def detect_text(ctx: AnalysisContext, seg: Optional[ShotSegmentation] = None) ->
         probes = _probes(ctx, prm, samples, tracks, read_frozen=ocr is not None and budget.left > 0)
         if not probes:
             break
-        dets.update(_detect_probes(ctx, prm, probes, ocr, budget))
+        dets.update(_detect_probes(ctx, prm, probes, ocr, budget, samples, dets))
         samples = sorted(samples + probes, key=lambda s: s.frame)
         tracks = _build_tracks(ctx, prm, samples, dets, neutral)
     min_frames = max(2, int(round(prm.min_duration * ctx.fps)))
     items = [_item(ctx, prm, tr) for tr in tracks if tr.end - tr.start >= min_frames]
-    overlays = _overlays(_chains(items, ctx.fps, prm), prm, ctx)
+    overlays = _overlays(_stack(_chains(items, ctx.fps, prm), ctx.fps), prm, ctx)
     present = np.zeros(n, np.float64)
     for ov in overlays:
         present[ctx.f(ov.start):min(n, int(round(ov.end * ctx.fps)))] = 1.0

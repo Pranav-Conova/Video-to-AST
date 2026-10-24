@@ -283,3 +283,126 @@ def test_performance_one_minute_clip():
     check_contract(res, n)
     assert elapsed < 30.0, f"text analysis took {elapsed:.1f}s"
     assert 12 <= len(res.overlays) <= 18
+
+
+# --------------------------------------------------------------------------- OCR economy, spacing, blocks, roles
+
+
+def count_reads(monkeypatch) -> list[int]:
+    """Patch the OCR wrapper to count detector runs; returns the (mutable) counter."""
+    from editast.analyzers import text as T
+
+    calls = [0]
+    orig = T._Ocr.read
+
+    def read(self, rgb, keep=None):
+        calls[0] += 1
+        return orig(self, rgb, keep)
+
+    monkeypatch.setattr(T._Ocr, "read", read)
+    return calls
+
+
+def black(n: int) -> np.ndarray:
+    return np.zeros((n, H, W, 3), np.uint8)
+
+
+def test_respace_restores_dropped_word_spaces():
+    """The recognizer sometimes drops word spaces ("COMINGSOON"); they come back from
+    the gaps between the characters, but evenly tracked lettering gets none."""
+    from editast.analyzers.text import _respace
+
+    font, scale, th = cv2.FONT_HERSHEY_SIMPLEX, 1.2, 2
+
+    def render(text: str, tracking: int = 0) -> tuple[np.ndarray, list[str], np.ndarray]:
+        crop = np.zeros((48, 40 + 60 * len(text), 3), np.uint8)
+        x, chars, xs = 10, [], []
+        for ch in text:
+            (cw, _), _ = cv2.getTextSize(ch, font, scale, th)
+            if ch != " ":
+                cv2.putText(crop, ch, (x, 38), font, scale, (255, 255, 255), th, cv2.LINE_AA)
+                chars.append(ch)
+                xs.append(x + cw / 2)
+            x += cw + tracking
+        return crop, chars, np.array(xs)
+
+    crop, chars, xs = render("COMING SOON")
+    assert "".join(chars) == "COMINGSOON"
+    assert _respace(chars, xs, crop) == "COMING SOON"
+    crop, chars, xs = render("HEARD IT FIRST")
+    assert _respace(chars, xs, crop) == "HEARD IT FIRST"
+    crop, chars, xs = render("SINTEL", tracking=22)  # widely tracked title lettering
+    assert _respace(chars, xs, crop) == "SINTEL"
+    crop, chars, xs = render("INSANE")
+    assert _respace(chars, xs, crop) == "INSANE"
+
+
+def test_blank_frames_are_not_ocrd(monkeypatch):
+    """Black frames hold nothing to read; a title card on black is read once, not at
+    every sample, and is a title (centred, alone on screen, after the hook)."""
+    pytest.importorskip("rapidocr_onnxruntime")
+    calls = count_reads(monkeypatch)
+    frames = black(150)
+    caption(frames, "THE END", 75, 140, center=(0.5, 0.5), size=0.035, outline=False)
+    res = detect(frames)
+    check_contract(res, len(frames))
+    assert len(res.overlays) == 1
+    ov = res.overlays[0]
+    assert similar(ov.text, "THE END") > 0.7
+    start, end = frames_of(ov)
+    assert abs(start - 75) <= 2 and abs(end - 140) <= 2
+    assert ov.role == "title"
+    assert calls[0] <= 4, f"{calls[0]} OCR runs"
+
+
+def test_title_card_fading_in_is_read_once(monkeypatch):
+    """A slowly fading title over still footage changes every pixel but not its text:
+    it is read about once, not at every sample."""
+    pytest.importorskip("rapidocr_onnxruntime")
+    calls = count_reads(monkeypatch)
+    base = scene(1, seed=23, velocity=(0.0, 0.0))[0]
+    titled = base.copy()
+    titled, _ = fx.draw_text(titled, "SUNSET", (0.5, 0.4), 0.06)
+    alpha = np.clip((np.arange(150) - 30) / 60.0, 0.0, 1.0)  # fades in over 2 s from frame 30
+    frames = np.stack([np.round(base * (1 - a) + titled * a).astype(np.uint8) for a in alpha])
+    res = detect(frames)
+    assert len(res.overlays) == 1
+    assert similar(res.overlays[0].text, "SUNSET") > 0.7
+    assert calls[0] <= 7, f"{calls[0]} OCR runs"
+
+
+def test_word_replaced_in_place_over_still_footage():
+    """Over still footage stillness says nothing, so reads follow changes: a caption
+    word replaced by another in the same place must still be read."""
+    pytest.importorskip("rapidocr_onnxruntime")
+    frames = scene(90, seed=29, velocity=(0.0, 0.0))
+    words = ["THIS", "CAR", "IS", "INSANE"]
+    for k, word in enumerate(words):
+        caption(frames, word, 15 + 12 * k, 27 + 12 * k, center=(0.5, 0.72), size=0.06)
+    res = detect(frames)
+    assert len(res.overlays) == 1
+    ov = res.overlays[0]
+    assert ov.animation == "word_by_word" and len(ov.words) == 4
+    for wd, truth in zip(ov.words, words):
+        assert similar(wd.text, truth) > 0.7
+
+
+def test_stacked_lines_sharing_timing_form_one_block():
+    """Credit lines that appear and disappear together are one overlay: lines joined
+    by newlines in reading order, bbox their union, a label (small text)."""
+    pytest.importorskip("rapidocr_onnxruntime")
+    frames = black(150)
+    lines = ["DIRECTED BY", "JANE DOE", "MUSIC BY KO"]
+    boxes = [caption(frames, line, 75, 140, center=(0.5, 0.42 + 0.06 * k), size=0.025, outline=False)
+             for k, line in enumerate(lines)]
+    res = detect(frames)
+    check_contract(res, len(frames))
+    assert len(res.overlays) == 1
+    ov = res.overlays[0]
+    got = (ov.text or "").split("\n")
+    assert len(got) == 3 and all(similar(g, t) > 0.7 for g, t in zip(got, lines))
+    x0 = min(b[0] for b in boxes)
+    y0 = min(b[1] for b in boxes)
+    union = (x0, y0, max(b[0] + b[2] for b in boxes) - x0, max(b[1] + b[3] for b in boxes) - y0)
+    assert iou(ov.bbox, union) > 0.5
+    assert ov.role == "label"

@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 from editast import fx
-from editast.analyzers.motion import analyze_motion
+from editast.analyzers.motion import _fit_jitter, analyze_motion
 from editast.analyzers.types import MotionAnalysis, ShotSegmentation, ShotSpan, TransitionSpan
 from editast.context import AnalysisConfig, context_from_arrays, load_context
 from editast.media import VideoWriter
@@ -235,6 +235,102 @@ def test_shake_is_localised():
     assert shake.start == pytest.approx(0.8, abs=0.2) and shake.end == pytest.approx(2.0, abs=0.2)
     assert shake.amplitude == pytest.approx(0.008, rel=0.4)
     assert shake.frequency == pytest.approx(9.0, rel=0.25)
+
+
+def test_short_shake_frequency_and_amplitude():
+    # Two cycles of jitter filling a 0.37 s shot: too short for a periodogram, but the
+    # sinusoid fit recovers frequency and amplitude, and the shake is not dropped for
+    # lack of zero crossings on one axis.
+    ma = analyze(render(11, lambda i: shake_params(i, 0.019, 5.4, seed=310362), seed=17))
+    (shake,) = effects(ma, "shake")
+    assert shake.start == 0.0 and shake.end == pytest.approx(11 / FPS)
+    assert shake.frequency == pytest.approx(5.4, abs=0.3)
+    assert shake.amplitude == pytest.approx(0.019, rel=0.15)
+
+
+@pytest.mark.parametrize("frequency", [5.0, 7.3, 9.6])
+def test_shake_frequency_is_precise(frequency):
+    ma = analyze(add_noise(render(16, lambda i: shake_params(i, 0.01, frequency, seed=3), seed=18), 2.0))
+    (shake,) = effects(ma, "shake")
+    assert shake.frequency == pytest.approx(frequency, abs=0.15)
+    assert shake.amplitude == pytest.approx(0.01, rel=0.1)
+
+
+def test_fit_jitter_tells_oscillation_from_kinks():
+    fps, ratios = 30.0, (1.0, 1.13, 0.9)
+    t = np.arange(12) / fps
+    x = 0.01 * np.sin(2 * np.pi * 6.2 * t + 0.4) + 0.004 * t
+    y = 0.01 * np.sin(2 * np.pi * 6.2 * 1.13 * t + 2.0)
+    zero = np.zeros_like(t)
+    freq, share, amps = _fit_jitter([x, y, zero], ratios, fps, degree=2)
+    assert freq == pytest.approx(6.2, abs=0.05) and share > 0.99
+    assert amps[:2] == pytest.approx([0.01, 0.01], rel=0.02) and amps[2] == pytest.approx(0.0, abs=1e-9)
+    _, share, _ = _fit_jitter([np.diff(v) for v in (x, y, zero)], ratios, fps)
+    assert share > 0.95  # periodicity is judged on the velocity
+    # A pan that halts and resumes (velocity steps): no single sinusoid explains its velocity.
+    for pause in (3, 5, 9, 13):
+        path = np.concatenate([np.arange(8), np.full(pause, 7.0), 7 + np.arange(1, 9)]) * 0.016
+        v = np.diff(path)
+        _, share, _ = _fit_jitter([v, np.zeros_like(v), np.zeros_like(v)], ratios, fps)
+        assert share < 0.9
+
+
+def test_pan_halting_under_freeze_is_one_pan_without_shake():
+    # A camera pan whose footage freezes for 0.3 s midway (a freeze-frame effect): one
+    # move with a pause, not a pan plus a "shake" made of the two velocity kinks.
+    k = [min(i, 8) if i < 17 else i - 8 for i in range(25)]
+    frames = render(25, lambda i: {"tx": 0.016 * k[i]}, seed=19)
+    ma = analyze(add_noise(frames, 2.0))
+    (pan,) = effects(ma, "pan")
+    assert pan.start < 0.1 and pan.end > 0.75
+    assert pan.dx > 0.15 and abs(pan.dy) < 0.02
+    assert not effects(ma, "shake")
+
+
+def test_same_direction_fragments_merge_into_one_pan():
+    # Pan right, a small wobble back (above the zig-zag hysteresis, below the threshold),
+    # then on to the right: one camera move, not two fragments.
+    def tx(i):
+        if i < 30:
+            return fx.interp(0.0, 0.12, (i - 10) / 20)
+        if i < 34:
+            return fx.interp(0.12, 0.095, (i - 30) / 4)
+        return fx.interp(0.095, 0.23, (i - 34) / 20)
+
+    ma = analyze(add_noise(render(70, lambda i: {"tx": tx(i)}, seed=20), 2.0))
+    (pan,) = effects(ma, "pan")
+    assert pan.dx == pytest.approx(0.23, rel=0.15)
+    assert pan.start < 0.45 and pan.end > 1.7
+
+
+def test_independent_subject_motion_is_not_a_camera_move():
+    # Three large parts of the picture moving on their own (a subject crossing to the
+    # right while growing as it approaches, one sinking, one crossing to the left), like
+    # a creature filling the frame: no single motion explains most of the picture, so no
+    # camera zoom / pan / rotate is reported.
+    layers = [synth.texture(H, 4 * W, seed=s) for s in (21, 22, 23)]
+    top, middle, bottom = slice(0, int(0.4 * H)), slice(int(0.4 * H), int(0.65 * H)), slice(int(0.65 * H), H)
+    frames = []
+    for i in range(45):
+        f = np.empty((H, W, 3), np.uint8)
+        m = fx.similarity_matrix(W, H, scale=fx.interp(1.0, 1.5, i / 44), center=(0.5, 0.2))
+        m[:, 2] += [6.0 * i - 1.5 * W, 0.0]  # moves right by 6 px per frame
+        f[top] = cv2.warpAffine(layers[0], m, (W, H), flags=cv2.INTER_LINEAR)[top]
+        f[middle] = np.roll(layers[1][:, :W], 4 * i, axis=0)[middle]  # moves down by 4 px per frame
+        f[bottom] = layers[2][bottom, 6 * i:6 * i + W]  # moves left by 6 px per frame
+        frames.append(f)
+    ma = analyze(add_noise(np.stack(frames), 2.0))
+    assert not effects(ma, "zoom") and not effects(ma, "pan") and not effects(ma, "rotate")
+
+
+def test_confidence_reflects_evidence():
+    # A clean digital move is confident; the same move barely above the threshold is less so.
+    big = analyze(render(60, lambda i: {"tx": fx.interp(0.0, 0.2, (i - 10) / 30)}, seed=24))
+    small = analyze(add_noise(render(60, lambda i: {"tx": fx.interp(0.0, 0.055, (i - 10) / 30)}, seed=24), 3.0))
+    (pb,) = effects(big, "pan")
+    (ps,) = effects(small, "pan")
+    assert pb.confidence > 0.85
+    assert 0.3 <= ps.confidence < pb.confidence - 0.2
 
 
 # --------------------------------------------------------------------------- (f) shot boundaries

@@ -4,14 +4,18 @@ Algorithm
 ---------
 1. **Thumbnails.** Every frame is reduced to a small blurred luma thumbnail
    (long side ~64 px). Pixels that never change over the clip (letterbox bars,
-   burned-in static titles) are masked out, and each thumbnail is z-normalised
+   burned-in static titles) are masked out, together with the ring of pixels
+   straddling such a border (they carry the bar's edge, which every shot shares),
+   and each thumbnail is z-normalised
    over the active pixels. Blending a frame toward a solid colour (flashes,
    fades) is an affine change of intensity, so the normalised thumbnail is
    unchanged by it. A frame is **flat** (no content: a solid flash or black
    frame) when its robust contrast is negligible, or when it is low and its
    normalised structure matches neither neighbour, which is the case for
    compression noise. A dimmed frame of a low-contrast night shot keeps its
-   structure and stays content.
+   structure and stays content, unless its contrast is a small fraction
+   (``dip_ratio``) of the shots on both sides: the peak of a fade through fog or
+   white, often a held duplicate frame that trivially matches its neighbour.
 2. **Content similarity** of two frames = mean of the global correlation and the
    median per-block SSIM contrast-structure term of their normalised thumbnails.
    The block median ignores local changes such as a caption popping in. When two
@@ -37,6 +41,11 @@ Algorithm
    flash envelope peaks on the boundary frame). Excursions touching the first or
    last frame, and ramps from a dimmed first / to a dimmed last frame, become
    fade-in / fade-out transitions. Long ramp-less flat runs become solid shots.
+   **Cards**: flat frames whose few pixels stand out from the background (a title,
+   logo or credits on black) held for ``solid_shot_seconds`` are shots of their
+   own, unless the same pattern sits unchanged on the neighbouring shots (a
+   caption drawn over everything). The excursion then splits into one transition
+   per card side instead of one long phantom fade.
    A hard cut flanked by partial blend ramps (no flat frame) is a flash or fade
    as well.
 5. **Dissolves.** Long-lag distances ``D(t-k, t+k)`` (``k`` at a few scales) flag
@@ -44,12 +53,16 @@ Algorithm
    linear-blend test: each frame is regressed on the two anchor frames,
    ``x ~ a*A + b*B + c``, where the anchors are extrapolated along their own
    shot's motion (constant-velocity translation from phase correlation), so
-   dissolves between panning shots still fit. A piecewise-linear ramp is fitted
-   to ``alpha = b / (a + b)`` and the extent is then grown or shrunk until
-   anchors next to the blend frames are pure. A dissolve needs a ramp-shaped
-   monotonic alpha, a fit that clearly beats either anchor alone, and anchors
-   that stay different after motion compensation. This rejects pans and zooms.
-   The boundary is the middle of the blend frames.
+   dissolves between panning shots still fit; when that fails the anchors are
+   aligned to every frame by their best similarity motion instead (zooms, speed
+   changes). A piecewise-linear ramp is fitted to ``alpha = b / (a + b)`` and the
+   extent is then grown or shrunk (up to ``dissolve_max_seconds``) until anchors
+   next to the blend frames are pure. A dissolve needs a monotonic alpha ramp
+   (linear or eased in-out), frames around the mid-blend point that the two
+   anchors explain clearly better than either alone, and anchors that stay
+   different after motion compensation; the mid-blend frame must not be a single
+   warped anchor. This rejects pans and zooms. The boundary is the middle of the
+   blend frames.
 6. **Cut styles.** Remaining hard cuts are compared with calm frames of the same
    shot (never with other shots): median block gradient energy (sharpness) and
    the horizontal/vertical gradient balance. A sudden blur with a directional
@@ -131,14 +144,20 @@ class ShotParams:
     edge_fade_min_ramp: int = 2  # ramp needed for a fade-in/out at the clip ends
     edge_fade_min_depth: float = 0.5  # min contrast loss of a fade that never reaches a flat frame
     solid_shot_seconds: float = 0.4  # ramp-less flat runs this long are shots of their own
+    dip_ratio: float = 0.15  # a low-contrast frame below this share of both sides' contrast is flat
+    card_dev: float = 0.15  # luma deviation from the background that marks card (text / logo) pixels
+    card_min_frac: float = 0.002  # share of card pixels that makes a flat frame a card
+    card_gap_seconds: float = 0.15  # card runs separated by shorter blank gaps are one card
+    overlay_ncc: float = 0.7  # an anchor reproducing the card pattern this well ...
+    overlay_diff: float = 0.06  # ... at this median luma difference shows the same overlay
     flash_min_alpha: float = 0.3  # min blend amount for a partial flash around a cut
-    dissolve_lags: tuple[int, ...] = (4, 8, 16)
+    dissolve_lags: tuple[int, ...] = (4, 8, 16, 24)
     dissolve_min_frames: int = 3
-    dissolve_max_frames: int = 30
+    dissolve_max_seconds: float = 2.5
     dissolve_min_distance: float = 0.5
-    dissolve_min_r2: float = 0.75  # mean R^2 of the blend fit over the blend frames
-    dissolve_min_gain: float = 0.1  # blend fit must beat the best single anchor by this
-    dissolve_max_err: float = 0.12  # rms deviation of alpha from a linear ramp
+    dissolve_min_r2: float = 0.6  # mean R^2 of the blend fit over the blend frames
+    dissolve_min_gain: float = 0.1  # blend fit must beat the best single anchor by this (mid blend)
+    dissolve_max_err: float = 0.12  # rms deviation of alpha from a linear / eased ramp
     classify_cuts: bool = True
     style_ref_seconds: float = 0.5  # calm frames of the same shot used as reference
     style_max_blur: float = 0.55  # gradient energy ratio vs. the shot's calm frames
@@ -443,6 +462,7 @@ class _Detector:
         self.score = np.zeros(self.n)
         self.threshold = np.full(self.n, params.threshold_floor)
         self.blocked = np.zeros(self.n, bool)  # frames near known boundaries (set before dissolves)
+        self.dissolve_max = max(params.dissolve_min_frames + 1, int(round(params.dissolve_max_seconds * self.fps)))
         self._texture_cache: dict[int, tuple[float, float]] = {}
 
     # ----------------------------------------------------------------- features
@@ -466,6 +486,12 @@ class _Detector:
             moving = sample.std(axis=0) >= p.static_std
             if moving.mean() >= 0.3:
                 active = moving
+                # Pixels straddling a static border (letterbox edge) move with the content but
+                # carry the border's edge, which every shot shares: drop them as well.
+                if not moving.all():
+                    inner = cv2.erode(moving.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
+                    if inner.mean() >= 0.3:
+                        active = inner
         act = active.astype(np.float32)
         na = float(act.sum())
         mean = (thumbs * act).sum(axis=(1, 2)) / na
@@ -502,7 +528,83 @@ class _Detector:
                 if 0 <= nb < n and not flat[nb]:
                     sim[k] = max(sim[k], self.matcher.similarity(t, nb))
         flat[cand[sim < p.structure_min]] = True
+        # Relative dips: a low-contrast frame (e.g. the white peak of a fade through fog, or a
+        # held duplicate frame that trivially shares its neighbour's structure) whose contrast
+        # is a small fraction of the shots on both sides carries no usable content either.
+        w = p.ramp_max_frames
+        if n > 2:
+            pad = np.concatenate([np.zeros(w), self.contrast, np.zeros(w + 1)])
+            win = np.lib.stride_tricks.sliding_window_view(pad, w)
+            left = win[:n].max(axis=1)  # max contrast over [t - w, t)
+            right = win[w + 1:w + 1 + n].max(axis=1)  # max contrast over (t, t + w]
+            dip = (self.contrast < p.flat_std) & (self.contrast < p.dip_ratio * np.minimum(left, right))
+            flat |= dip
         return flat
+
+    def _card_map(self, t: int) -> np.ndarray:
+        """Signed luma deviation (0..1) of frame ``t`` from its background level, lightly
+        blurred (so pixel noise does not count) and zero outside the active area."""
+        g = cv2.blur(self.ctx.gray[t], (3, 3)).astype(np.float32) / 255.0
+        dev = g - float(np.median(g[self.active_full]))
+        dev[~self.active_full] = 0.0
+        return dev
+
+    def _card_energy(self, frames: np.ndarray) -> np.ndarray:
+        """Share of active pixels of each (flat) frame that stand out from the background:
+        text or a logo on a solid card. Pure flashes / black frames score ~0."""
+        na = max(float(self.active_full.sum()), 1.0)
+        out = np.zeros(len(frames))
+        for i, t in enumerate(frames.tolist()):
+            out[i] = float((np.abs(self._card_map(t)) > self.p.card_dev).sum()) / na
+        return out
+
+    def _is_overlay(self, card: int, anchor: int) -> bool:
+        """Whether the card's pattern also sits on ``anchor`` unchanged: a caption drawn over
+        the whole sequence (not new content)."""
+        if not (0 <= anchor < self.n):
+            return False
+        c = self._card_map(card)
+        core = np.abs(c) > self.p.card_dev
+        if not core.any():
+            return False
+        area = cv2.dilate(core.astype(np.uint8), np.ones((7, 7), np.uint8)) > 0
+        g = cv2.blur(self.ctx.gray[anchor], (3, 3)).astype(np.float32) / 255.0
+        gc = cv2.blur(self.ctx.gray[card], (3, 3)).astype(np.float32) / 255.0
+        # Median over the glyph pixels: blurred glyph edges mix in whatever lies underneath.
+        if float(np.median(np.abs(g[core] - gc[core]))) > self.p.overlay_diff:
+            return False
+        x, y = g[area] - g[area].mean(), gc[area] - gc[area].mean()
+        den = float(np.sqrt((x @ x) * (y @ y)))
+        return den > 1e-9 and float(x @ y) / den >= self.p.overlay_ncc
+
+    def _cards(self, ex: _Excursion) -> list[tuple[int, int]]:
+        """Card shots ``[c0, c1)`` inside the flat core of ``ex``: text or a logo on a solid
+        background, held long enough to be a shot and not an overlay of either neighbour."""
+        p = self.p
+        core = np.arange(ex.core0, ex.core1)
+        if core.size == 0:
+            return []
+        is_card = self._card_energy(core) >= p.card_min_frac
+        gap = max(1, int(round(p.card_gap_seconds * self.fps)))
+        runs: list[list[int]] = []
+        for r0, r1 in _runs(is_card):
+            if runs and r0 - runs[-1][1] <= gap:
+                runs[-1][1] = r1
+            else:
+                runs.append([r0, r1])
+        solid = max(p.min_shot_frames, int(round(p.solid_shot_seconds * self.fps)))
+        out = []
+        for r0, r1 in runs:
+            c0, c1 = int(core[r0]), int(core[r1 - 1]) + 1
+            if c1 - c0 < solid:
+                continue
+            # Representative frame: the strongest card frame of the run.
+            sample = np.arange(c0, c1, max(1, (c1 - c0) // 8))
+            rep = int(sample[np.argmax(self._card_energy(sample))])
+            if self._is_overlay(rep, ex.f0 - 1) or self._is_overlay(rep, ex.f1):
+                continue
+            out.append((c0, c1))
+        return out
 
     def _content_distance(self) -> None:
         """Cut score from content + colour change to the previous content frame."""
@@ -610,6 +712,39 @@ class _Detector:
         unassigned0 = last_a + 1
         return unassigned0 + (first_b - unassigned0) // 2
 
+    def _card_transitions(self, ex: _Excursion, cards: list[tuple[int, int]]) -> list[_Boundary]:
+        """Transitions between the shots around and the cards inside excursion ``ex``.
+
+        Each side is ``(is_anchor, first own frame, end of own frames)``: the content shot
+        before the excursion owns its blend ramp up to ``core0``, the one after it owns the
+        frames from ``core1``. Blank frames between two sides are split evenly; a side that
+        meets the next without blank or ramp frames is a hard cut.
+        """
+        sides: list[tuple[bool, int, int]] = []
+        if ex.f0 > 0:
+            sides.append((True, ex.f0, ex.core0))
+        sides.extend((False, c0, c1) for c0, c1 in cards)
+        if ex.f1 < self.n:
+            sides.append((True, ex.core1, ex.f1))
+        out: list[_Boundary] = []
+        for (la, l0, l1), (ra, r0, r1) in zip(sides, sides[1:]):
+            lo, hi = l1, r0  # blank frames [lo, hi) between the two sides
+            boundary = lo + max(0, hi - lo) // 2
+            ramp = (ex.ramp_in if la else 0) + (ex.ramp_out if ra else 0)
+            f0 = l0 if la else l1
+            f1 = r1 if ra else r0
+            blank = (lo, hi) if hi > lo else (l0, l1) if not la else (r0, r1)
+            color = self._core_color(*blank)
+            level = float(np.median(self.level[blank[0]:blank[1]]))
+            if hi <= lo and ramp == 0:
+                out.append(_Boundary(boundary, "cut", boundary, boundary, 1.5, 2, 0.8, params={"card": True}))
+            else:
+                out.append(_Boundary(boundary, self._dip_kind(level), f0, f1, 1.5, 2, 0.8, color,
+                                     {"card": True, "ramp_in": ex.ramp_in if la else 0,
+                                      "ramp_out": ex.ramp_out if ra else 0, "hold": max(0, hi - lo)}))
+            self.score[boundary] = max(self.score[boundary], 0.5)
+        return out
+
     def _edge_ramp(self, at_start: bool) -> Optional[_EdgeFade]:
         """A fade-in from (fade-out to) a colour that the clip never fully reaches."""
         p, n = self.p, self.n
@@ -646,6 +781,13 @@ class _Detector:
         fade_in = fade_out = None
         for ex in events:
             core_len = ex.core1 - ex.core0
+            cards = self._cards(ex)
+            if cards:
+                # Text / logo cards inside a dip are shots of their own: the excursion splits
+                # into one transition per side of every card instead of one long phantom fade.
+                suppressed[ex.f0:ex.f1 + 1] = True
+                records.extend(self._card_transitions(ex, cards))
+                continue
             if ex.f0 == 0 and ex.f1 == n:
                 suppressed[:] = True
                 continue
@@ -763,6 +905,29 @@ class _Detector:
             alpha[i], r2[i], single[i] = _regress(self.thumbs[t][mask], pa[mask], pb[mask])
         return _BlendFit(frames, alpha, r2, single)
 
+    def _blend_fit_mc(self, a: int, b: int, frames: np.ndarray) -> Optional[_BlendFit]:
+        """Like :meth:`_blend_fit`, but each anchor is aligned to every frame by its best
+        similarity motion (translation, zoom, rotation). Both shots keep moving during a
+        dissolve, often with zooms or speed changes that a constant velocity cannot follow."""
+        w, h = self.matcher.size
+        alpha, r2, single = (np.full(frames.size, np.nan) for _ in range(3))
+        for i, t in enumerate(frames.tolist()):
+            warped, mask = [], self.active.copy()
+            for anchor in (a, b):
+                if anchor == t:
+                    warped.append(self.thumbs[t])
+                    continue
+                _, scale, angle, dx, dy = self.matcher.best_motion(anchor, t, _MOTION_SEARCH)
+                m = cv2.getRotationMatrix2D(self.matcher.center, angle, scale)
+                m[0, 2] += dx * w
+                m[1, 2] += dy * h
+                warped.append(cv2.warpAffine(self.thumbs[anchor], m, (w, h), borderMode=cv2.BORDER_REFLECT_101))
+                mask &= cv2.warpAffine(self.matcher.active, m, (w, h), flags=cv2.INTER_NEAREST) > 0.5
+            if mask.mean() < 0.3:
+                return None
+            alpha[i], r2[i], single[i] = _regress(self.thumbs[t][mask], warped[0][mask], warped[1][mask])
+        return _BlendFit(frames, alpha, r2, single)
+
     def _warped_r2(self, f: int, anchors: tuple[int, ...]) -> float:
         """Best R^2 of frame ``f`` explained by one anchor under a wide similarity-motion search."""
         w, h = self.matcher.size
@@ -821,7 +986,7 @@ class _Detector:
         frame inside the span shows up as an alpha stuck at 0 / 1.
         """
         p = self.p
-        for _ in range(2 * p.dissolve_max_frames):
+        for _ in range(2 * self.dissolve_max):
             # Alphas of the frame beyond each anchor and of the first / last blend frame.
             probe = np.array([max(lo, f0 - 2), f0, f1 - 1, min(hi, f1 + 1)])
             fit = self._blend_fit(f0 - 1, f1, probe)
@@ -830,11 +995,11 @@ class _Detector:
             out_l, in_l, in_r, out_r = np.nan_to_num(fit.alpha, nan=0.5).tolist()
             step = max(0.04, 0.5 / (f1 - f0 + 1))
             moved = False
-            if f0 - 2 >= lo and out_l < -step and f1 - f0 < p.dissolve_max_frames:
+            if f0 - 2 >= lo and out_l < -step and f1 - f0 < self.dissolve_max:
                 f0, moved = f0 - 1, True
             elif in_l < 0.3 * step and f1 - f0 > p.dissolve_min_frames:
                 f0, moved = f0 + 1, True
-            if f1 + 1 <= hi and out_r > 1.0 + step and f1 - f0 < p.dissolve_max_frames:
+            if f1 + 1 <= hi and out_r > 1.0 + step and f1 - f0 < self.dissolve_max:
                 f1, moved = f1 + 1, True
             elif in_r > 1.0 - 0.3 * step and f1 - f0 > p.dissolve_min_frames:
                 f1, moved = f1 - 1, True
@@ -847,7 +1012,7 @@ class _Detector:
         coarse = self._blend_fit(lo, hi, np.arange(lo, hi + 1))
         if coarse is None or np.isnan(coarse.alpha).any():
             return None
-        i0, i1, err = _fit_ramp(np.clip(coarse.alpha, 0.0, 1.0), p.dissolve_min_frames, p.dissolve_max_frames)
+        i0, i1, err = _fit_ramp(np.clip(coarse.alpha, 0.0, 1.0), p.dissolve_min_frames, self.dissolve_max)
         if i1 <= i0 or err > 0.2:
             return None
         # The refined span may reach beyond the window, but not into other boundaries.
@@ -859,32 +1024,58 @@ class _Detector:
         a, b = f0 - 1, f1
         if a < 1 or b > self.n - 2 or f1 - f0 < p.dissolve_min_frames:
             return None
-        fit = self._blend_fit(a, b, np.arange(a, b + 1))
-        if fit is None:
-            return None
-        inner, rr = fit.alpha[1:-1], fit.r2[1:-1]
-        if np.isnan(inner).any() or np.any(np.diff(fit.alpha) < -0.15):
-            return None
-        if inner[0] > 0.5 or inner[-1] < 0.5:
-            return None
-        ramp = (np.arange(1, inner.size + 1)) / (inner.size + 1)
-        if float(np.sqrt(np.mean((inner - ramp) ** 2))) > p.dissolve_max_err:
-            return None
-        mid = inner.size // 2
-        if rr.mean() < p.dissolve_min_r2 or rr[mid] - fit.single[1 + mid] < p.dissolve_min_gain:
-            return None
         dist = self.matcher.distance(a, b)
         if dist < p.dissolve_min_distance:
             return None
-        # A zoom or pan between the anchors looks like a blend at low resolution, but its
-        # middle frame is a single image: one anchor, warped, explains it as well.
-        if rr[mid] - self._warped_r2(a + 1 + mid, (a, b)) < p.dissolve_min_gain:
+        # Long spans are judged on (near) evenly spaced frames: the shape test needs no more.
+        frames = np.unique(np.round(np.linspace(a, b, min(b - a + 1, 17))).astype(int))
+        # Constant-velocity anchors first; per-frame aligned anchors (costlier) only if needed.
+        best = self._judge_blend(self._blend_fit(a, b, frames))
+        if best is None:
+            best = self._judge_blend(self._blend_fit_mc(a, b, frames))
+        if best is None:
             return None
-        conf = float(np.clip(0.4 + 0.6 * min(1.0, (rr.mean() - 0.6) / 0.35) * min(1.0, dist), 0.4, 1.0))
+        gain, cross, r2_mean, r2_cross = best
+        # A zoom or pan between the anchors looks like a blend at low resolution, but its
+        # mid-blend frame is a single image: one anchor, warped, explains it as well.
+        if r2_cross - self._warped_r2(cross, (a, b)) < p.dissolve_min_gain:
+            return None
+        conf = float(np.clip(0.4 + 0.6 * min(1.0, (r2_mean - 0.5) / 0.4) * min(1.0, dist), 0.4, 1.0))
         boundary = (f0 + f1) // 2
         self.score[boundary] = max(self.score[boundary], dist)
         return _Boundary(boundary, "dissolve", f0, f1, 1.0 + dist, 2, conf,
-                         params={"fit_r2": round(float(rr.mean()), 3)})
+                         params={"fit_r2": round(r2_mean, 3), "gain": round(gain, 3)})
+
+    def _judge_blend(self, fit: Optional[_BlendFit]) -> Optional[tuple[float, int, float, float]]:
+        """Check a blend fit over ``[a, b]`` (anchors at both ends) for a dissolve: a
+        monotonic alpha ramp (linear or eased in-out) from 0 to 1, and frames around the
+        mid-blend point that two anchors explain clearly better than either one alone.
+        Returns ``(mid-blend gain, mid-blend frame, mean R^2, its R^2)`` or None."""
+        p = self.p
+        if fit is None:
+            return None
+        inner, rr, single = fit.alpha[1:-1], fit.r2[1:-1], fit.single[1:-1]
+        if inner.size == 0 or np.isnan(inner).any():
+            return None
+        # Per-frame alignment is noisy: judge the shape on a 3-tap median of alpha.
+        sm = np.concatenate([[0.0], inner, [1.0]])
+        sm = np.median(np.lib.stride_tricks.sliding_window_view(np.pad(sm, 1, mode="edge"), 3), axis=1)[1:-1]
+        if np.any(np.diff(np.concatenate([[0.0], sm, [1.0]])) < -0.15) or sm[0] > 0.5 or sm[-1] < 0.5:
+            return None
+        x = np.arange(1, sm.size + 1) / (sm.size + 1)
+        # Linear or eased in-out (symmetric): a one-sided ease cannot be told from a step
+        # (fast motion) over a few frames.
+        shapes = (x, x * x * (3.0 - 2.0 * x))
+        if min(float(np.sqrt(np.mean((sm - s) ** 2))) for s in shapes) > p.dissolve_max_err:
+            return None
+        mid = (sm >= 0.25) & (sm <= 0.75)
+        if not mid.any():
+            mid = np.abs(sm - 0.5) == np.abs(sm - 0.5).min()
+        gain = float(np.mean(rr[mid] - single[mid]))
+        if gain < p.dissolve_min_gain or float(rr.mean()) < p.dissolve_min_r2:
+            return None
+        k = int(np.argmin(np.abs(sm - 0.5)))
+        return gain, int(fit.frames[1 + k]), float(rr.mean()), float(rr[k])
 
     # ----------------------------------------------------------------- cut styles
 

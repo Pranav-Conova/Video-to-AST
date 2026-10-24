@@ -1,0 +1,191 @@
+{
+ "source": "https://download.blender.org/durian/trailer/sintel_trailer-480p.mp4",
+ "license": "CC-BY 3.0 Blender Foundation",
+ "fps": 24,
+ "n_frames": 1253,
+ "matching": "cuts match within +-2 frames of 'time'; gradual transitions match a predicted boundary inside [start, end] (+-2 frames)",
+ "boundaries": [
+  {
+   "time": 5.167,
+   "frame": 124,
+   "kind": "fade_white",
+   "start": 4.917,
+   "end": 5.833,
+   "note": "snowy mountain ramps to white (118-122), white 123-124, girl in the snow storm fades in from white (125-~140)"
+  },
+  {
+   "time": 9.333,
+   "frame": 224,
+   "kind": "fade_black",
+   "start": 8.542,
+   "end": 9.375,
+   "note": "girl in the snow fades to black (205-223), 'The Blender Foundation presents' title card cuts in at 224"
+  },
+  {
+   "time": 11.667,
+   "frame": 280,
+   "kind": "fade_black",
+   "start": 10.417,
+   "end": 12.5,
+   "note": "title card fades out (250-275), black hold 276-284, old man fades in from black (285-~300)"
+  },
+  {
+   "time": 13.917,
+   "frame": 334,
+   "kind": "cut",
+   "start": 13.917,
+   "end": 13.917,
+   "note": "old man close-up -> Sintel in the dark hut"
+  },
+  {
+   "time": 16.5,
+   "frame": 396,
+   "kind": "fade_black",
+   "start": 15.5,
+   "end": 16.542,
+   "note": "Sintel fades to black (372-387), black hold 388-395, hard cut into the bright snow fight at 396"
+  },
+  {
+   "time": 16.833,
+   "frame": 404,
+   "kind": "cut",
+   "start": 16.833,
+   "end": 16.833,
+   "note": "Sintel with spear in the snow -> attacker raising a sword"
+  },
+  {
+   "time": 17.0,
+   "frame": 408,
+   "kind": "cut",
+   "start": 17.0,
+   "end": 17.0,
+   "note": "attacker -> fight close-up with heavy motion blur (409-415 are blurred frames of the same shot)"
+  },
+  {
+   "time": 17.792,
+   "frame": 427,
+   "kind": "fade_black",
+   "start": 17.5,
+   "end": 19.167,
+   "note": "hard cut to black at 420, black hold to ~434, dark alley fades in (435-~460)"
+  },
+  {
+   "time": 21.708,
+   "frame": 521,
+   "kind": "fade_black",
+   "start": 20.833,
+   "end": 22.708,
+   "note": "alley fades to black (500-517), black hold 518-524, Sintel crying fades in (525-~545)"
+  },
+  {
+   "time": 23.792,
+   "frame": 571,
+   "kind": "cut",
+   "start": 23.792,
+   "end": 23.792,
+   "note": "Sintel close-up -> sunset city with red dragon"
+  },
+  {
+   "time": 25.875,
+   "frame": 621,
+   "kind": "cut",
+   "start": 25.875,
+   "end": 25.875,
+   "note": "dragon flying over the city -> dragon in the sky"
+  },
+  {
+   "time": 27.417,
+   "frame": 658,
+   "kind": "cut",
+   "start": 27.417,
+   "end": 27.417,
+   "note": "big dragon -> Sintel face close-up"
+  },
+  {
+   "time": 28.125,
+   "frame": 675,
+   "kind": "fade_black",
+   "start": 28.0,
+   "end": 28.833,
+   "note": "hard cut to black at 672, black hold 672-678, Sintel and dragon fade in (679-~690)"
+  },
+  {
+   "time": 32.125,
+   "frame": 771,
+   "kind": "fade_black",
+   "start": 31.583,
+   "end": 32.917,
+   "note": "Sintel fades to black (758-770), black at 771, dragon over a giant hand fades in (772-~790)"
+  },
+  {
+   "time": 35.458,
+   "frame": 851,
+   "kind": "dissolve",
+   "start": 34.75,
+   "end": 36.208,
+   "note": "slow cross-dissolve: dragon over the hand -> desert (~1.4 s)"
+  },
+  {
+   "time": 41.167,
+   "frame": 988,
+   "kind": "dissolve",
+   "start": 40.167,
+   "end": 42.208,
+   "note": "desert -> SINTEL logo on black: logo fades in over the desert while the desert fades out (~2 s)"
+  },
+  {
+   "time": 47.375,
+   "frame": 1137,
+   "kind": "fade_black",
+   "start": 45.625,
+   "end": 47.542,
+   "note": "SINTEL logo fades out (1095-1133), black hold 1134-1139, 'COMING SOON' cuts in at 1140"
+  },
+  {
+   "time": 48.458,
+   "frame": 1163,
+   "kind": "cut",
+   "start": 48.458,
+   "end": 48.458,
+   "note": "'COMING SOON' text card -> credits text card"
+  },
+  {
+   "time": 50.833,
+   "frame": 1220,
+   "kind": "cut",
+   "start": 50.833,
+   "end": 50.833,
+   "note": "credits -> black end slate held to the end of the clip"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "fade_black",
+   "start": 0.0,
+   "end": 2.5,
+   "note": "black 0-13, slow fade-in of the snowy mountain (fade-in at the start)"
+  }
+ ],
+ "continuous": [
+  {
+   "start": 29.792,
+   "end": 31.0,
+   "note": "one shot: the dragon sweeps past, grabs Scales from Sintel's hands and the camera swings to Sintel's face (fast motion, no cut at ~29.96 or ~30.7)"
+  },
+  {
+   "start": 9.375,
+   "end": 10.417,
+   "note": "static title card"
+  },
+  {
+   "start": 42.208,
+   "end": 45.625,
+   "note": "static SINTEL logo on black"
+  },
+  {
+   "start": 17.042,
+   "end": 17.5,
+   "note": "fight close-up with heavy motion blur"
+  }
+ ]
+}

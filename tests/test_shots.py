@@ -6,7 +6,11 @@ the same pixel operation the compiler applies. Frames are portrait analysis
 frames (width 180, height 320) at 30 fps unless stated otherwise.
 """
 
+import json
+import os
 import time
+import urllib.request
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -275,6 +279,94 @@ def test_fade_in_then_cuts():
     assert [t.kind for t in seg.transitions] == ["fade_black", "cut", "cut"]
 
 
+def test_text_card_between_fades_is_its_own_shot():
+    """Fade to black, a title card on black, fade back in: two transitions, not one long dip."""
+    a, b = scene(30, seed=71), scene(30, seed=72, velocity=(-1.0, 0.5))
+    a[-8:] = blend_toward(a[-8:], [(k + 1) / 8 for k in range(8)], BLACK)
+    b[:8] = blend_toward(b[:8], [1 - k / 8 for k in range(8)], BLACK)
+    card = fx.draw_text(np.zeros((H, W, 3), np.uint8), "PRESENTS", center=(0.5, 0.5), size=0.05)[0]
+    black = np.zeros((6, H, W, 3), np.uint8)
+    frames = np.concatenate([a, black[:2], np.stack([card] * 24), black, b])  # card frames [32, 56)
+    seg = detect(frames)
+    check_contract(seg, len(frames))
+    assert len(seg.shots) == 3, [(t.kind, t.boundary) for t in seg.transitions]
+    assert seg.shots[1].f0 <= 32 and seg.shots[1].f1 >= 56
+    assert [t.kind for t in seg.transitions] == ["fade_black", "fade_black"]
+    first, second = seg.transitions
+    assert 22 <= first.boundary <= 32 and 56 <= second.boundary <= 62
+
+
+def test_caption_over_a_black_dip_is_not_a_card():
+    """A caption drawn over the shots and the black hold between them is an overlay."""
+    a, b = scene(30, seed=73), scene(30, seed=74, velocity=(0.0, 1.0))
+    a[-6:] = blend_toward(a[-6:], [(k + 1) / 6 for k in range(6)], BLACK)
+    b[:6] = blend_toward(b[:6], [1 - k / 6 for k in range(6)], BLACK)
+    frames = np.concatenate([a, np.zeros((16, H, W, 3), np.uint8), b])
+    frames = np.stack([fx.draw_text(f, "WAIT FOR IT", center=(0.5, 0.75), size=0.06)[0] if i >= 12 else f
+                       for i, f in enumerate(frames)])
+    seg = detect(frames)
+    check_contract(seg, len(frames))
+    (tr,) = seg.transitions
+    assert tr.kind == "fade_black" and 30 <= tr.boundary <= 46
+
+
+def test_foggy_letterboxed_fade_through_white():
+    """Low-contrast letterboxed shots dipping through (almost) white."""
+    def fog(f: np.ndarray) -> np.ndarray:
+        return np.clip(170 + (f.astype(np.float32) - 128) * 0.45, 0, 255).astype(np.uint8)
+    a = np.stack([fog(f) for f in scene(30, seed=75, velocity=(0.5, 0.0))])
+    b = np.stack([fog(f) for f in scene(30, seed=76, velocity=(0.0, 0.5))])
+    amounts = [0.3, 0.55, 0.75, 0.9, 0.95, 0.95]
+    a[-6:] = blend_toward(a[-6:], amounts, WHITE)
+    b[:6] = blend_toward(b[:6], amounts[::-1], WHITE)
+    frames = np.stack([fx.letterbox(f, 0.12, 0.12) for f in np.concatenate([a, b])])
+    seg = detect(frames)
+    check_contract(seg, len(frames))
+    (tr,) = seg.transitions
+    assert tr.kind == "fade_white" and abs(tr.boundary - 30) <= 2
+
+
+def test_relative_dip_frames_are_flat():
+    """A held near-white frame pair whose contrast is a small fraction of both shots is flat,
+    even though the two identical frames trivially share their structure."""
+    a, b = scene(30, seed=33), scene(30, seed=78, velocity=(-1.0, 0.0))
+    peak = fx.flash(a[-1], 0.92, WHITE)
+    frames = np.concatenate([a[:-2], np.stack([peak, peak]), b])
+    from editast.analyzers.shots import _Detector
+    det = _Detector(context_from_arrays(frames, FPS), ShotParams())
+    assert det.contrast[28] > ShotParams().flat_abs  # not flat by the absolute test alone
+    assert det.flat[28] and det.flat[29]
+    seg = detect(frames)
+    check_contract(seg, len(frames))
+    assert len(seg.shots) == 2 and abs(seg.shots[1].f0 - 29) <= 1
+
+
+def test_long_dissolve_between_moving_shots():
+    """A two-second (60 frame) cross-dissolve between two panning shots."""
+    a, b = scene(80, seed=81, velocity=(1.5, 0.0)), scene(80, seed=82, velocity=(-1.0, 0.5))
+    mixed = np.stack([fx.blend(a[20 + j], b[j], (j + 1) / 61) for j in range(60)])
+    frames = np.concatenate([a[:20], mixed, b[60:]])  # blend frames are [20, 80)
+    seg = detect(frames)
+    check_contract(seg, len(frames))
+    (tr,) = seg.transitions
+    assert tr.kind == "dissolve"
+    assert 20 <= tr.boundary < 80 and abs(tr.f1 - 80) <= 2
+
+
+def test_dissolve_into_bw_with_zoom_and_leaving_caption():
+    """Colour shot zooming in, dissolving into a B&W shot; the caption leaves mid-dissolve."""
+    a = scene(45, seed=91, velocity=(2.0, 0.0), zoom_rate=1.012)
+    b = np.stack([fx.to_bw(f) for f in scene(45, seed=92, velocity=(-1.5, 0.5), zoom_rate=0.99)])
+    mixed = np.stack([fx.blend(a[25 + j], b[j], (j + 1) / 15) for j in range(14)])
+    frames = np.concatenate([a[:25], mixed, b[14:]])  # blend frames are [25, 39)
+    frames = np.stack([fx.draw_text(f, "WATCH TILL THE END", center=(0.5, 0.7), size=0.06)[0] if i < 32 else f
+                       for i, f in enumerate(frames)])
+    seg = detect(frames)
+    check_contract(seg, len(frames))
+    (tr,) = seg.transitions
+    assert tr.kind == "dissolve" and abs(tr.boundary - 32) <= 2
+
+
 # --------------------------------------------------------------------------- no false cuts
 
 
@@ -499,3 +591,47 @@ def test_runtime_one_minute_clip():
     hits = match(truth, pred, tol=1)
     assert hits / len(truth) >= 0.97 and hits / max(len(pred), 1) >= 0.97
     assert elapsed < 15.0, elapsed
+
+
+# --------------------------------------------------------------------------- real footage (opt-in)
+
+_LABELS = Path(__file__).parent / "data" / "sintel_trailer_boundaries.json"
+
+
+def _score_against_labels(seg: ShotSegmentation, fps: float, labels: dict, tol: int = 2) -> tuple[float, float]:
+    """Precision / recall of the shot boundaries: cuts match within ``tol`` frames, gradual
+    transitions anywhere inside their labelled span (+- ``tol``)."""
+    pred = boundaries(seg)
+    used: set[int] = set()
+    hits = 0
+    for b in labels["boundaries"]:
+        f = int(round(b["time"] * fps))
+        if b["kind"] == "cut":
+            lo, hi = f - tol, f + tol
+        else:
+            lo, hi = int(round(b["start"] * fps)) - tol, int(round(b["end"] * fps)) + tol
+        cands = [p for p in pred if lo <= p <= hi and p not in used]
+        if cands:
+            used.add(min(cands, key=lambda p: abs(p - f)))
+            hits += 1
+    return hits / max(len(pred), 1), hits / len(labels["boundaries"])
+
+
+@pytest.mark.skipif(os.environ.get("EDITAST_REAL_TESTS") != "1", reason="set EDITAST_REAL_TESTS=1 (downloads ~4 MB)")
+def test_sintel_trailer_boundaries():
+    """Sintel trailer (Blender Foundation, CC-BY 3.0) against hand-labelled boundaries:
+    fades through black and white, title cards, dark cuts and long dissolves."""
+    labels = json.loads(_LABELS.read_text(encoding="utf-8"))
+    cache = Path.home() / ".cache" / "editast" / "test-media"
+    cache.mkdir(parents=True, exist_ok=True)
+    path = cache / "sintel_trailer-480p.mp4"
+    if not path.exists():
+        tmp = path.with_suffix(".part")
+        urllib.request.urlretrieve(labels["source"], tmp)
+        tmp.replace(path)
+    ctx = load_context(path)
+    assert abs(ctx.fps - labels["fps"]) < 0.01
+    seg = detect_shots(ctx)
+    check_contract(seg, ctx.n_frames)
+    precision, recall = _score_against_labels(seg, ctx.fps, labels)
+    assert recall >= 0.9 and precision >= 0.9, (precision, recall, [round(b / ctx.fps, 2) for b in boundaries(seg)])

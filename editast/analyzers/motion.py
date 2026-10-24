@@ -28,7 +28,9 @@ Algorithm
    no motion. Effects need most of their frames measured (``min_coverage``).
 3. **Zoom**: a zig-zag (hysteresis) filter splits the lightly smoothed log-scale curve
    into monotone legs; legs changing by more than ``zoom_threshold`` become
-   :class:`~editast.ast.nodes.Zoom` nodes. Start, end and easing come from a
+   :class:`~editast.ast.nodes.Zoom` nodes. A leg is tightened to its fast stretches; a
+   move that halts for at most ``pause_seconds`` (e.g. under a freeze frame) and resumes
+   in the same direction, or wobbles back slightly in between, stays one move. Start, end and easing come from a
    least-squares fit with free endpoints of every easing in :data:`FIT_EASINGS` to the
    cumulative *scale*, because the renderer interpolates scale linearly through the
    easing (:func:`editast.fx.interp`). The centre is the fixed point of the inter-frame
@@ -42,15 +44,27 @@ Algorithm
    (``smooth_seconds``) of the translation (x and y legs are merged into one pan) and
    angle curves, then the same easing fit on the unsmoothed curves.
 5. **Shake**: the high-frequency residual of translation and angle is scanned with a
-   windowed RMS. The residual is the curve minus the fitted pan / rotate models inside
-   their spans and minus the Savitzky-Golay trend elsewhere, so fast eased moves do not
-   leak into it. Runs above ``shake_threshold`` (per-axis peak, estimated as
-   ``sqrt(2) * RMS`` as for sinusoidal jitter) that last ``shake_min_duration`` and
-   actually oscillate become :class:`~editast.ast.nodes.Shake` nodes (snapped to a shot
-   edge within ``shake_edge_seconds``). The frequency is the peak of the per-axis power
-   spectra, summed after aligning them on the renderer's axis ratios
-   (:data:`_SHAKE_AXIS_RATIOS`), so it means the same as ``Shake.frequency`` when rendered.
-6. **Summary**: one :class:`~editast.ast.nodes.MotionSummary` per shot (cumulative zoom,
+   windowed RMS. The residual is the curve minus the fitted pan / rotate models and
+   minus a Savitzky-Golay trend, so fast eased moves do not leak into it. Runs above
+   ``shake_threshold`` (per-axis peak, estimated as ``sqrt(2) * RMS`` as for sinusoidal
+   jitter) that last ``shake_min_duration``, swing back and forth and are *periodic*
+   (one sinusoid explains ``shake_periodicity`` of the energy of their frame-to-frame
+   velocity, over at least ``shake_min_cycles`` cycles, which rejects the residue of
+   velocity kinks such as a pan halting under a freeze frame) become
+   :class:`~editast.ast.nodes.Shake` nodes
+   (snapped to a shot edge within ``shake_edge_seconds``). Frequency and per-axis
+   amplitude come from a least-squares sinusoid fit (:func:`_fit_jitter`) to the jitter
+   before trend removal, with the axes tied by the renderer's frequency ratios
+   (:data:`_SHAKE_AXIS_RATIOS`), so they mean the same as ``Shake.frequency`` /
+   ``amplitude`` when rendered; unlike a periodogram this stays accurate over the one
+   to three cycles of a short shake.
+6. **Confidence**: every effect's ``confidence`` combines the evidence for a move of the
+   whole picture (``_ShotAnalyzer._quality``): measured share of its frames, rigidity
+   (RANSAC inlier share: parallax lowers it, a subject moving on its own lowers it a
+   lot), fit residual, consistency of the eased model (``r2``), size relative to the
+   detection threshold and number of measured frames. Effects below
+   ``min_confidence`` are not reported (they still shape the curves).
+7. **Summary**: one :class:`~editast.ast.nodes.MotionSummary` per shot (cumulative zoom,
    pan and rotation, mean flow magnitude and a coarse camera class).
 
 Units follow ``editast.ast.nodes``: translations are fractions of the width (x) or
@@ -68,7 +82,7 @@ from typing import Optional, Sequence
 
 import cv2
 import numpy as np
-from scipy.ndimage import gaussian_filter1d, uniform_filter1d
+from scipy.ndimage import gaussian_filter1d, maximum_filter1d, uniform_filter1d
 from scipy.signal import savgol_filter
 
 from editast import fx
@@ -136,6 +150,7 @@ class _Params:
     zoom_threshold: float = 0.04  # relative scale change
     pan_threshold: float = 0.05  # normalised displacement
     rotate_threshold: float = 3.0  # degrees
+    pause_seconds: float = 0.5  # a move halting at most this long and resuming in the same direction is one move
     center_snap: float = 0.05  # zoom centres this close to 0.5 (per axis) snap to 0.5
     center_margin: float = 0.25  # seconds around a zoom that also constrain the pan velocity
     center_min_shift: float = 0.01  # total centre shift (fraction of width) an off-centre zoom must explain
@@ -145,11 +160,15 @@ class _Params:
     digital_r2: float = 0.98  # ... and a clean eased scale curve (R^2 of the easing fit)
     parallax_residual: float = 0.01  # above this residual the motion is not one rigid layer
     parallax_inliers: float = 0.6  # below this inlier fraction: parallax / independent motion
+    min_move_seconds: float = 0.15  # measured frames for full confidence in a zoom / pan / rotate
+    min_confidence: float = 0.3  # effects with less evidence (see ``_ShotAnalyzer._quality``) are dropped
     # --- shake
     shake_threshold: float = 0.004  # per-axis peak offset, fraction of width
     shake_rotation_threshold: float = 0.5  # degrees
     shake_window: float = 0.3  # seconds, windowed RMS
     shake_min_duration: float = 0.25  # seconds
+    shake_periodicity: float = 0.9  # share of the jitter velocity's energy one sinusoid must explain
+    shake_min_cycles: float = 1.4  # jitter cycles the shake must span
     shake_edge_seconds: float = 0.1  # shakes this close to a shot edge are extended to it
 
     @classmethod
@@ -608,32 +627,50 @@ def _turning_points(y: np.ndarray, hysteresis: float) -> list[int]:
     return pivots
 
 
-def _moves(y: np.ndarray, hysteresis: float, threshold: float) -> list[tuple[int, int]]:
+def _moves(y: np.ndarray, hysteresis: float, threshold: float, pause: int = 0) -> list[tuple[int, int]]:
     """Monotone moves of ``y`` larger than ``threshold`` as ``(a, b)`` frame ranges.
 
     A move runs from where it passes 5% to where it passes 95% of its total change,
-    tightened to the contiguous stretch around its peak speed where the speed stays
-    above 10% of that peak, so slow drift (e.g. compression bias) or jitter before or
-    after a quick move does not stretch it.
+    tightened to the stretches where the speed stays above 10% of the leg's peak speed,
+    so slow drift (e.g. compression bias) or jitter before or after a quick move does
+    not stretch it. Fast stretches of one leg separated by at most ``pause`` frames
+    (a move that halts briefly, e.g. under a freeze frame, and resumes) are one move;
+    farther ones are separate moves when each is large enough on its own. Consecutive
+    moves in the same direction with at most ``pause`` frames between them (a small
+    wobble back in between) are merged too, so one camera move is not reported as
+    fragments.
     """
-    out = []
+    out: list[tuple[int, int, float]] = []
     piv = _turning_points(y, hysteresis)
     velocity = np.gradient(y) if len(y) > 1 else np.zeros(len(y))
     for p, q in zip(piv[:-1], piv[1:]):
         delta = y[q] - y[p]
         if abs(delta) < threshold:
             continue
+        sign = float(np.sign(delta))
         prog = (y[p:q + 1] - y[p]) / delta
         a = p + int(np.argmax(prog >= 0.05))
         b = q - int(np.argmax(prog[::-1] <= 0.95))
-        leg = velocity[p:q + 1] * np.sign(delta)  # positive while moving in the leg's direction
-        peak = int(np.argmax(leg))
-        fast = _runs(leg >= 0.1 * leg[peak])
-        f0, f1 = next((s + p, e - 1 + p) for s, e in fast if s <= peak < e)
-        if max(a, f0) < min(b, f1):
-            a, b = max(a, f0), min(b, f1)
-        out.append((a, max(b, a + 1)))
-    return out
+        leg = velocity[p:q + 1] * sign  # positive while moving in the leg's direction
+        peak = p + int(np.argmax(leg))
+        groups: list[list[int]] = []
+        for s, e in _runs(leg >= 0.1 * float(leg.max())):
+            if groups and s + p - groups[-1][1] <= pause + 1:
+                groups[-1][1] = e - 1 + p
+            else:
+                groups.append([s + p, e - 1 + p])
+        for f0, f1 in groups:
+            if not f0 <= peak <= f1 and (y[f1] - y[f0]) * sign < threshold:
+                continue  # a minor stretch of the leg, too small to be a move of its own
+            lo, hi = (max(a, f0), min(b, f1)) if max(a, f0) < min(b, f1) else (f0, f1)
+            out.append((lo, max(hi, lo + 1), sign))
+    merged: list[tuple[int, int, float]] = []
+    for a, b, sign in out:
+        if merged and merged[-1][2] == sign and a - merged[-1][1] <= pause:
+            merged[-1] = (merged[-1][0], b, sign)
+        else:
+            merged.append((a, b, sign))
+    return [(a, b) for a, b, _ in merged]
 
 
 def _merge(intervals: list[tuple[int, int]], gap: int) -> list[tuple[int, int]]:
@@ -816,6 +853,7 @@ class _ShotAnalyzer:
         self.log_scale = np.cumsum(log_r)
         self.angle = np.cumsum(ang)
         self.trend_window = _odd_window(prm.smooth_seconds, self.fps, self.n)
+        self.pause = int(round(prm.pause_seconds * self.fps))
 
     # ------------------------------------------------------------------ driver
 
@@ -835,6 +873,11 @@ class _ShotAnalyzer:
         rotates, rot_fits = self._rotates()
         shakes, level = self._shakes(pan_x, pan_y, pan_fits, rot_fits)
         curves = _Curves(self.log_scale, self.angle, pan_x, pan_y)
+        # Every fitted move shapes the curves above (pan correction, shake baseline), but
+        # only moves with enough evidence are reported: weak fits are mostly a subject
+        # moving on its own, parallax-heavy footage or tracking noise.
+        zooms, pans, rotates, shakes = ([e for e in group if e.confidence >= self.prm.min_confidence]
+                                        for group in (zooms, pans, rotates, shakes))
         effects = sorted(zooms + pans + rotates + shakes, key=lambda e: (e.start, e.type))
         summary = self._summary(curves, zooms, pans, rotates, shakes, level)
         return _ShotResult(effects, summary, curves, level)
@@ -860,21 +903,40 @@ class _ShotAnalyzer:
         """Shot-relative (fractional) frame -> absolute seconds, clamped to the shot."""
         return self.ctx.t(self.shot.f0 + float(np.clip(i, 0.0, self.n)))
 
-    def _quality(self, i0: float, i1: float, r2: float) -> float:
-        """Confidence of an effect over shot-relative frames ``(i0, i1]``: the share of
-        frames with a similarity fit, how well that fit explains the tracks (residual,
-        inlier fraction) and how well the eased model explains the curve (``r2``)."""
+    def _quality(self, i0: float, i1: float, r2: float, strength: Optional[float] = None) -> float:
+        """Confidence that frames ``(i0, i1]`` hold a move of the whole picture.
+
+        A product of the evidence, each factor in ``[0, 1]``:
+
+        * *coverage*: share of the frames with a similarity fit;
+        * *rigidity*: the RANSAC inlier share, from ``min_inlier_ratio`` (no evidence) to
+          ``digital_inliers`` (one rigid picture). Parallax lowers it moderately, while a
+          large subject moving on its own (a character or vehicle filling the frame over
+          a static or featureless background) leaves most tracks off the fitted motion;
+        * *residual*: mean reprojection error of the inliers (``parallax_residual`` scale);
+        * *consistency*: ``r2`` of the eased model over the move (a coherent move vs.
+          wandering);
+        * *strength*: the change relative to its detection threshold (``strength``; a
+          move barely above it is as likely drift or tracking bias as an edit), halved
+          at the threshold and full from twice the threshold;
+        * *duration*: measured frames relative to ``min_move_seconds``.
+        """
         prm = self.prm
         k = (self.idx > i0) & (self.idx <= i1) & self.inside
         if not k.any():
             return 0.0
         valid = float(self.good[k].mean())
         fitted = k & self.good
-        res = float(self.residual[fitted].mean()) if fitted.any() else prm.parallax_residual
-        inl = float(self.inliers[fitted].mean()) if fitted.any() else prm.parallax_inliers
+        if not fitted.any():
+            return 0.0
+        res = float(self.residual[fitted].mean())
+        inl = float(self.inliers[fitted].mean())
+        rigid = float(np.clip((inl - prm.min_inlier_ratio) / (prm.digital_inliers - prm.min_inlier_ratio), 0.0, 1.0))
         res_factor = float(np.clip(1.0 - res / (2.0 * prm.parallax_residual), 0.2, 1.0))
-        inl_factor = float(np.clip(inl / prm.digital_inliers, 0.5, 1.0))
-        return round(valid * res_factor * inl_factor * (0.5 + 0.5 * max(0.0, min(1.0, r2))), 3)
+        consistency = float(np.clip(r2, 0.0, 1.0))
+        strong = 1.0 if strength is None else float(np.clip(0.5 * strength, 0.5, 1.0))
+        frames = float(np.clip(fitted.sum() / max(1.0, prm.min_move_seconds * self.fps), 0.0, 1.0))
+        return round(valid * rigid * res_factor * consistency * strong * frames, 3)
 
     def _observed(self, curve: np.ndarray, known: np.ndarray, fit: _Fit) -> float:
         """Change of ``curve`` over a fitted move counting only measured increments.
@@ -908,7 +970,7 @@ class _ShotAnalyzer:
             return [], []
         thr = math.log1p(prm.zoom_threshold)
         smooth = gaussian_filter1d(self.log_scale, 1.0, mode="nearest")
-        moves = _moves(smooth, 0.5 * thr, thr)
+        moves = _moves(smooth, 0.5 * thr, thr, self.pause)
         scale = np.exp(self.log_scale)
         zooms, fits = [], []
         for k, (a, b) in enumerate(moves):
@@ -939,7 +1001,7 @@ class _ShotAnalyzer:
             zooms.append(Zoom(
                 start=self._time(fit.t0), end=self._time(fit.t1 + 1.0), easing=fit.easing,
                 scale_from=1.0, scale_to=ratio, digital=digital, keyframes=keyframes,
-                confidence=self._quality(fit.t0, fit.t1, fit.r2),
+                confidence=self._quality(fit.t0, fit.t1, fit.r2, abs(math.log(ratio)) / thr),
                 params={"scale_start": float(fit.offsets[0]), "fit_r2": round(fit.r2, 4),
                         "residual": None if res is None else round(res, 5),
                         "inliers": None if inl is None else round(inl, 3)},
@@ -1014,7 +1076,7 @@ class _ShotAnalyzer:
         trends = [_trend(curve, self.trend_window) for curve in (pan_x, pan_y)]
         cand = []
         for trend in trends:
-            cand += _moves(trend, 0.4 * thr, 0.6 * thr)
+            cand += _moves(trend, 0.4 * thr, 0.6 * thr, self.pause)
         moves = _merge(cand, int(round(0.1 * self.fps)))
         pans, fits = [], []
         for k, (a, b) in enumerate(moves):
@@ -1031,7 +1093,8 @@ class _ShotAnalyzer:
             pans.append(Pan(
                 start=self._time(fit.t0), end=self._time(fit.t1 + 1.0), easing=fit.easing,
                 dx=float(fit.amps[0]), dy=float(fit.amps[1]),
-                confidence=self._quality(fit.t0, fit.t1, fit.r2), params={"fit_r2": round(fit.r2, 4)},
+                confidence=self._quality(fit.t0, fit.t1, fit.r2, math.hypot(*fit.amps) / thr),
+                params={"fit_r2": round(fit.r2, 4)},
             ))
             fits.append(fit)
         return pans, fits
@@ -1042,7 +1105,7 @@ class _ShotAnalyzer:
             return [], []
         thr = prm.rotate_threshold
         trend = _trend(self.angle, self.trend_window)
-        moves = _moves(trend, 0.5 * thr, thr)
+        moves = _moves(trend, 0.5 * thr, thr, self.pause)
         rotates, fits = [], []
         for k, (a, b) in enumerate(moves):
             lo, hi = self._limits(moves, k)
@@ -1057,7 +1120,8 @@ class _ShotAnalyzer:
                 start=self._time(fit.t0), end=self._time(fit.t1 + 1.0), easing=fit.easing,
                 angle_from=0.0, angle_to=float(fit.amps[0]),
                 keyframes=[Keyframe(t=self._time(t), v=float(np.interp(t, self.idx, self.angle) - a0)) for t in kt],
-                confidence=self._quality(fit.t0, fit.t1, fit.r2), params={"fit_r2": round(fit.r2, 4)},
+                confidence=self._quality(fit.t0, fit.t1, fit.r2, abs(float(fit.amps[0])) / thr),
+                params={"fit_r2": round(fit.r2, 4)},
             ))
             fits.append(fit)
         return rotates, fits
@@ -1082,9 +1146,8 @@ class _ShotAnalyzer:
             base_y += fit.amps[1] * aspect * prog
         for fit in rot_fits:
             base_a += fit.amps[0] * fit.progress(self.idx)
-        rx = (x - base_x) - _trend(x - base_x, self.trend_window)
-        ry = (y - base_y) - _trend(y - base_y, self.trend_window)
-        ra = (self.angle - base_a) - _trend(self.angle - base_a, self.trend_window)
+        dx, dy, da = x - base_x, y - base_y, self.angle - base_a
+        rx, ry, ra = (v - _trend(v, self.trend_window) for v in (dx, dy, da))
         rx[~self.has_t] = ry[~self.has_t] = ra[~self.good] = 0.0  # interpolated frames carry no jitter
 
         win = _odd_window(prm.shake_window, self.fps, self.n, minimum=3) or 3
@@ -1103,18 +1166,34 @@ class _ShotAnalyzer:
             if b - a < min_len:
                 continue
             sx, sy, sa = rx[a:b], ry[a:b], ra[a:b]
-            ax, ay = math.sqrt(2.0 * float(np.mean(sx * sx))), math.sqrt(2.0 * float(np.mean(sy * sy)))
+            signals = [sx, sy, sa * rad]
+            power = [float(np.mean(v * v)) for v in signals]
+            if max(power) <= 0:
+                continue
+            # One-sided excursions (e.g. a nudge) are not shake: some axis carrying a fair
+            # share of the jitter must swing back and forth. With 2-D jitter one axis may sit
+            # near a zero crossing at both ends of a short shake, so every such axis counts.
+            if max(_oscillations(v) for v, e in zip(signals, power) if e >= 0.25 * max(power)) < 3:
+                continue
+            # It must also be periodic. A sinusoid (tied across axes by the renderer's ratios)
+            # is fitted to the jitter before the trend removal, which absorbs part of it
+            # unevenly across frequencies and near shot edges, with a quadratic standing in
+            # for the trend over the span: its frequency and per-axis amplitudes describe the
+            # shake. Periodicity is judged on the frame-to-frame velocity, where one sinusoid
+            # explains nearly all of real jitter but not the steps of a move halting and
+            # resuming (e.g. under a freeze frame), whose position residue can pass for one
+            # slow cycle.
+            span = [dx[a:b], dy[a:b], da[a:b] * rad]
+            freq, _, fitted = _fit_jitter(span, _SHAKE_AXIS_RATIOS, self.fps, degree=2)
+            _, share, _ = _fit_jitter([np.diff(v) for v in span], _SHAKE_AXIS_RATIOS, self.fps)
+            if share < prm.shake_periodicity or freq * (b - a) / self.fps < prm.shake_min_cycles:
+                continue
+            ax, ay, rot_amp = float(fitted[0]), float(fitted[1]), float(fitted[2]) / rad
             amp = math.sqrt((ax * ax + ay * ay) / 2.0)
-            rot_amp = math.sqrt(2.0 * float(np.mean(sa * sa)))
             if amp < 0.5 * prm.shake_threshold and rot_amp < prm.shake_rotation_threshold:
                 continue
-            signals = [sx, sy, sa * rad]
-            dominant = max(signals, key=lambda s: float(np.mean(s * s)))
-            if _oscillations(dominant) < 3:  # one-sided excursions (e.g. a nudge) are not shake
-                continue
-            freq = _dominant_frequency(signals, _SHAKE_AXIS_RATIOS, self.fps)
             strength = max(amp / prm.shake_threshold, rot_amp / prm.shake_rotation_threshold)
-            conf = self._quality(a - 1, b - 1, 1.0) * float(np.clip(0.5 + 0.25 * (strength - 1.0), 0.3, 1.0))
+            conf = self._quality(a - 1, b - 1, 1.0) * float(np.clip(0.5 + 0.25 * (strength - 1.0), 0.3, 1.0)) * share
             # The jitter of the first frame is unobservable (it is the reference) and the
             # trim can lose a frame at either end: a shake this close to a cut starts / ends there.
             a = 0 if a <= edge else a
@@ -1128,8 +1207,12 @@ class _ShotAnalyzer:
 
     @staticmethod
     def _trim_shake(a: int, b: int, *signals: np.ndarray) -> tuple[int, int]:
-        """Shrink a windowed-RMS run to where the jitter itself reaches half its peak."""
-        inst = np.max(np.abs(np.stack([s[a:b] for s in signals])), axis=0)
+        """Shrink a windowed-RMS run to where the jitter itself reaches half its peak.
+
+        The jitter envelope is the largest per-axis offset over three frames, so a sample
+        that happens to fall on a zero crossing of every axis does not end the shake early.
+        """
+        inst = maximum_filter1d(np.max(np.abs(np.stack([s[a:b] for s in signals])), axis=0), 3, mode="nearest")
         peak = float(inst.max()) if inst.size else 0.0
         if peak <= 0:
             return a, a
@@ -1194,22 +1277,62 @@ def _oscillations(signal: np.ndarray) -> int:
     return count
 
 
-def _dominant_frequency(signals: Sequence[np.ndarray], ratios: Sequence[float], fps: float) -> float:
-    """Peak (above 0.5 Hz) of the summed Hann-windowed, zero-padded power spectra, where
-    signal ``k`` is expected to oscillate at ``ratios[k]`` times the returned frequency."""
+def _fit_jitter(signals: Sequence[np.ndarray], ratios: Sequence[float], fps: float,
+                degree: int = 1, f_min: float = 1.0, step: float = 0.02) -> tuple[float, float, np.ndarray]:
+    """Least-squares sinusoid fit of the jitter: ``(frequency, explained share, amplitudes)``.
+
+    Signal ``k`` is modelled as ``a_k cos(2 pi r_k f t) + b_k sin(2 pi r_k f t)`` plus a
+    polynomial nuisance trend of ``degree``, with ``r_k = ratios[k]`` (the renderer's axis ratios), and
+    the frequency maximising the summed explained energy is returned along with the
+    share of the (detrended) energy it explains. This is the maximum-likelihood
+    frequency of a sinusoid in white noise: unlike a windowed periodogram it stays
+    accurate over the one to three cycles of a short shake, and the share tells real
+    oscillation (most of the energy at one frequency) from the residue of velocity
+    kinks (a move halting and resuming), which no single sinusoid explains. The
+    amplitudes are the fitted per-signal sinusoid amplitudes at that frequency.
+    """
     n = len(signals[0])
-    nfft = max(256, 1 << int(math.ceil(math.log2(4 * n))))
-    window = np.hanning(n) if n > 2 else np.ones(n)
-    freqs = np.fft.rfftfreq(nfft, 1.0 / fps)
-    power = np.zeros(len(freqs))
-    for sig, ratio in zip(signals, ratios):
-        spectrum = np.abs(np.fft.rfft((sig - sig.mean()) * window, nfft)) ** 2
-        power += np.interp(freqs * ratio, freqs, spectrum, right=0.0)
-    power = np.where(freqs >= 0.5, power, 0.0)
-    k = int(np.argmax(power))
-    if 0 < k < len(power) - 1:  # parabolic peak interpolation
-        p0, p1, p2 = power[k - 1], power[k], power[k + 1]
+    amps = np.zeros(len(signals))
+    if n < degree + 4:
+        return 0.0, 0.0, amps
+    t = np.arange(n) / fps
+    u = (t - t.mean()) / max(float(np.ptp(t)), 1e-9)
+    q, _ = np.linalg.qr(np.stack([u ** d for d in range(degree + 1)], axis=1))
+
+    def deflate(m: np.ndarray) -> np.ndarray:  # remove the nuisance polynomial along the last axis
+        return m - (m @ q) @ q.T
+
+    ys = [deflate(np.asarray(s, float)) for s in signals]
+    energy = sum(float(y @ y) for y in ys)
+    f_max = 0.5 * fps / max(ratios)
+    if energy <= 0 or f_max <= f_min:
+        return 0.0, 0.0, amps
+
+    def project(f: np.ndarray, y: np.ndarray, ratio: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Explained energy and cos / sin coefficients of ``y`` at frequencies ``f``."""
+        w = 2.0 * np.pi * ratio * f[:, None] * t[None, :]
+        c, s = deflate(np.cos(w)), deflate(np.sin(w))
+        cc, ss, cs = (c * c).sum(1), (s * s).sum(1), (c * s).sum(1)
+        cy, sy = c @ y, s @ y
+        det = cc * ss - cs * cs
+        ok = det > 1e-6 * np.maximum(cc * ss, 1e-12)
+        safe = np.where(ok, det, 1.0)
+        ca, sb = np.where(ok, (ss * cy - cs * sy) / safe, 0.0), np.where(ok, (cc * sy - cs * cy) / safe, 0.0)
+        return ca * cy + sb * sy, ca, sb
+
+    freqs = np.arange(f_min, f_max, step)
+    score = np.zeros(len(freqs))
+    for y, ratio in zip(ys, ratios):
+        if float(y @ y) > 0:
+            score += project(freqs, y, ratio)[0]
+    k = int(np.argmax(score))
+    freq = float(freqs[k])
+    if 0 < k < len(score) - 1:  # parabolic peak interpolation
+        p0, p1, p2 = score[k - 1], score[k], score[k + 1]
         den = p0 - 2 * p1 + p2
-        shift = 0.5 * (p0 - p2) / den if den < 0 else 0.0
-        return float(freqs[k] + shift * (freqs[1] - freqs[0]))
-    return float(freqs[k])
+        if den < 0:
+            freq += float(np.clip(0.5 * (p0 - p2) / den, -0.5, 0.5)) * step
+    for i, (y, ratio) in enumerate(zip(ys, ratios)):
+        _, ca, sb = project(np.array([freq]), y, ratio)
+        amps[i] = math.hypot(float(ca[0]), float(sb[0]))
+    return freq, float(np.clip(score[k] / energy, 0.0, 1.0)), amps

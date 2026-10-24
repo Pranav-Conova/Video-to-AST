@@ -13,7 +13,12 @@ magnitude:
    the dense flow by trimmed least squares. Zoom and rotation are dropped, the
    centre translation and the non-rigid residual (mean deviation of the flow
    from the fit: subjects, parallax) are divided by the cumulative zoom of the
-   shot so a digital zoom-in does not read as faster footage.
+   shot so a digital zoom-in does not read as faster footage. Where the motion
+   analysis has a valid feature-track similarity, its centre translation and
+   scale replace the dense estimate (more precise for slow camera travel, and
+   not biased by a small fast subject). The flow minus the fitted zoom /
+   rotation is also kept per region of a 3 x 3 grid: the frame's motion
+   *pattern*.
 2. **Still frames.** A frame repeats its predecessor when its mean gray
    difference, its flow magnitude and the largest difference of any ~16 px
    block (a moving subject in an otherwise static shot keeps one block busy)
@@ -25,15 +30,19 @@ magnitude:
    cycles, with a steady novel-to-novel gap and novel frames clearly above the
    repeats, form a segment whose rate is the inverse mean novel-to-novel
    gap, divided by the video's baseline cadence, so 30 fps footage in a 60 fps
-   container (which repeats every frame everywhere) is not slow motion.
+   container (which repeats every frame everywhere) is not slow motion. The
+   cadence overrides motion-based estimates that straddle the segment.
 4. **Freezes.** Longer still runs (at least ``max(3 frames, 0.12 s)`` of
    identical displayed frames) inside a shot whose other frames clearly move:
    camera travel (so a flash or a digital zoom does not count as motion), or,
    in a static (tripod) shot, a subject whose motion stops dead into the hold
-   and resumes right after it. A static shot with nothing moving, or whose
-   subject comes to rest or leaves the frame, never yields a freeze. A hold
-   running into a transition that covers the rest of the shot is assumed to
-   continue under it.
+   and resumes right after it. The hold must be far calmer than the steps into
+   and out of it (motion easing to a crawl is not a freeze). A static shot with
+   nothing moving, or whose subject comes to rest or leaves the frame, never
+   yields a freeze. A hold running into a transition that covers the rest of
+   the shot is assumed to continue under it, and a weak one- or two-frame
+   change inside a hold (an RGB split or glitch switching on over the frozen
+   picture) does not break it.
 5. **Speed curve.** Each novel frame's motion is spread evenly over itself and
    the repeats that precede it (the source advanced one frame over that whole
    run, so duplicate-frame slow motion reads as a smooth low rate, exactly like
@@ -47,13 +56,25 @@ magnitude:
 6. **Speed events.** Sustained ``r < slow_rate`` runs are slow-motion
    candidates. The transitions into and out of them are fitted with a
    plateau-ramp-plateau model (ramp start, end and easing by exhaustive least
-   squares in log-rate); changes of at least 2x within ``ramp_max`` seconds
-   (or deeper ones up to ``ramp_max_long`` that start from a steady plateau)
+   squares in log-rate); changes of at least ~2x within ``ramp_max`` seconds
+   (or longer ones up to ``ramp_max_long``, e.g. an eased ramp starting on the
+   shot's first frame, that are anchored by a steady normal-speed plateau)
    become ``ramp_down`` / ``ramp_up`` while quicker ones are hard speed cuts
    that only delimit the slow span. A candidate entered and left only
    gradually (a car accelerating, a camera slowing down) is natural motion and
-   is dropped; the others become ``slowmo``. A shot whose normal-speed motion
-   is far above the video's typical motion gets a low-confidence ``fast`` node.
+   is dropped; the others become ``slowmo``.
+7. **Same motion, scaled.** An edited rate change scales the footage's motion
+   field without changing it, while natural motion changes speed *and*
+   direction or layout. Each candidate is compared with the normal-speed
+   footage next to it (at least ``agreement_min_normal`` seconds of it) and
+   with the frames of its ramps: the summed motion patterns must point the
+   same way (cosine >= ``min_agreement``, reported as ``params["agreement"]``),
+   and the dense pattern, an independent speed measurement, must see the slow
+   span as slow too (``pattern_slow_rate``); otherwise the candidate is a
+   camera turning or a subject stopping and is dropped. Comparing absolute
+   motion across shots (``fast`` nodes for shots moving far above the
+   video's typical motion) is off by default (``fast_relative_to_video``):
+   a faster camera or closer framing is no evidence of fast-forward.
    Shots are judged only when the camera travel or the subject (residual)
    motion is clearly measurable on its own, and slow / fast spans running into
    a transition that covers the rest of the shot continue under it.
@@ -112,6 +133,7 @@ class _Flow:
     resid: np.ndarray  # (n,) mean non-rigid flow, fraction of width, zoom-normalised
     total: np.ndarray  # (n,) mean flow magnitude, fraction of width
     log_zoom: np.ndarray  # (n,) inter-frame log zoom of the similarity fit
+    pattern: np.ndarray  # (n, regions, 2) mean flow per region without the fitted zoom / rotation
 
 
 @dataclass
@@ -170,13 +192,14 @@ def analyze_time_effects(
         starts[s.f0] = True
     starts[0] = True
     usable = ~_fit_length(seg.transition_frames(), n) & ~starts
-    flow = _flow(ctx.gray, starts, prm)
+    flow = _with_tracked_motion(_flow(ctx.gray, starts, prm), motion, starts, ctx.size, prm)
     camera = np.hypot(flow.trans[:, 0], flow.trans[:, 1])  # global (camera) travel per frame
     diff = np.asarray(ctx.features.diff, float)
     block = _block_change(ctx.gray, starts, prm)
     # Flashes / inversions / glitches: their flow says nothing about playback speed.
     outliers = _photometric_outliers(ctx, shots, prm)
     still = _still_frames(diff, block, flow.total, usable, shots, prm)
+    still |= _hold_blips(still, diff, usable, shots, prm)
     flashed = _photometric_stills(ctx.gray, still, outliers, usable, camera, shots, prm)
     still |= flashed
     # A repeat under a flash differs from its predecessor only photometrically.
@@ -235,7 +258,8 @@ def analyze_time_effects(
             r[a:b] = _fill_gaps(r[a:b], known)
             r_fine[a:b] = _fill_gaps(r_fine[a:b], known)
             if known.sum() >= min_seg:
-                events[shot.index] += _speed_events(r[a:b], r_fine[a:b], shot.f0 + a, prm)
+                events[shot.index] += _speed_events(r[a:b], r_fine[a:b], shot.f0 + a, prm,
+                                                    flow.pattern[shot.f0 + a:shot.f0 + b], known)
         rate[shot.f0:shot.f1] = r
         for ev in events[shot.index]:
             _through_transitions(ev, shot, ok, trans_frames)
@@ -291,13 +315,18 @@ def _flow(gray: np.ndarray, starts: np.ndarray, prm: _Params) -> _Flow:
     design = np.vstack([np.column_stack([px, -py, one, zero]), np.column_stack([py, px, zero, one])])
     pinv = np.linalg.pinv(design)
     m = xs.size
-    min_log = float(prm("zoom_noise", 0.003))  # per-frame |log zoom| below this is fit noise
+    # Region of every sample point on a k x k grid (the motion "pattern" of a frame).
+    k = max(1, int(prm("pattern_grid", 3)))
+    region = (np.minimum(k - 1, (ys - border) * k // max(1, sh - 2 * border)) * k
+              + np.minimum(k - 1, (xs - border) * k // max(1, sw - 2 * border)))
+    counts = np.maximum(np.bincount(region, minlength=k * k), 1)
     # Flow error grows with displacement (e.g. at the rim of a fast zoom); only deviations
     # beyond that count as independent motion.
     err_rel = float(prm("flow_rel_error", 0.2))
     err_floor = float(prm("flow_floor_px", 0.1))
 
     trans, resid, total = np.zeros((n, 2)), np.zeros(n), np.zeros(n)
+    pattern = np.zeros((n, k * k, 2))
     zoom = np.ones(n)
     dis = cv2.DISOpticalFlow_create(cv2.DISOPTICAL_FLOW_PRESET_FAST)
     prev = cv2.resize(gray[0], size, interpolation=cv2.INTER_AREA)
@@ -319,17 +348,61 @@ def _flow(gray: np.ndarray, starts: np.ndarray, prm: _Params) -> _Flow:
             resid[t] = float(np.maximum(excess, 0.0).mean()) / sw
             total[t] = float(np.hypot(obs[:m], obs[m:]).mean()) / sw
             zoom[t] = float(np.hypot(1.0 + p[0], p[1]))
+            # Footage motion per region: the flow minus the fitted zoom / rotation about the centre.
+            u = obs[:m] - (p[0] * px - p[1] * py)
+            v = obs[m:] - (p[1] * px + p[0] * py)
+            pattern[t, :, 0] = np.bincount(region, u, k * k) / counts / sw
+            pattern[t, :, 1] = np.bincount(region, v, k * k) / counts / sw
         prev = cur
 
-    # Cumulative zoom since the shot start (reset at every shot start).
     log_zoom = np.log(np.clip(zoom, 0.8, 1.25))
     log_zoom[starts] = 0.0
+    scale = _cumulative_zoom(log_zoom, starts, prm)
+    return _Flow(trans=trans / scale[:, None], resid=resid / scale, total=total, log_zoom=log_zoom,
+                 pattern=pattern / scale[:, None, None])
+
+
+def _cumulative_zoom(log_zoom: np.ndarray, starts: np.ndarray, prm: _Params) -> np.ndarray:
+    """Zoom level relative to the shot start (reset at every shot start), from per-frame log zooms."""
+    min_log = float(prm("zoom_noise", 0.003))  # per-frame |log zoom| below this is fit noise
     steps = np.where(np.abs(log_zoom) >= min_log, log_zoom, 0.0)
+    steps[starts] = 0.0
     seg_id = np.cumsum(starts)
     cum = np.cumsum(steps)
     cum -= np.concatenate(([0.0], cum))[np.flatnonzero(starts)][seg_id - 1]
-    scale = np.exp(np.clip(cum, -np.log(3.0), np.log(3.0)))
-    return _Flow(trans=trans / scale[:, None], resid=resid / scale, total=total, log_zoom=log_zoom)
+    return np.exp(np.clip(cum, -np.log(3.0), np.log(3.0)))
+
+
+def _with_tracked_motion(flow: _Flow, motion: Optional[MotionAnalysis], starts: np.ndarray,
+                         size: tuple[int, int], prm: _Params) -> _Flow:
+    """Camera translation from the motion analysis' feature tracks where they are valid.
+
+    Sparse Lucas-Kanade tracks with a RANSAC similarity (full analysis resolution)
+    measure slow camera travel more precisely than the dense, downscaled flow, and
+    an independently moving subject does not bias them. Their translation is
+    normalised by the same cumulative zoom (from the tracked scale where valid),
+    so an edit-level zoom does not read as faster footage.
+    """
+    if motion is None or motion.frame_motion is None or not bool(prm("use_tracked_motion", True)):
+        return flow
+    fm = motion.frame_motion
+    n = flow.total.size
+    arrays = [np.asarray(a, float) for a in (fm.tx, fm.ty, fm.scale)]
+    valid = np.asarray(fm.valid, bool)
+    if any(a.shape != (n,) for a in arrays) or valid.shape != (n,):
+        return flow
+    tx, ty, sc = arrays
+    valid = valid & np.isfinite(tx) & np.isfinite(ty) & (sc > 0) & ~starts
+    w, h = size
+    log_zoom = np.where(valid, np.log(np.clip(np.where(sc > 0, sc, 1.0), 0.8, 1.25)), flow.log_zoom)
+    log_zoom[starts] = 0.0
+    scale = _cumulative_zoom(log_zoom, starts, prm)
+    old = _cumulative_zoom(flow.log_zoom, starts, prm)
+    raw = flow.trans * old[:, None]
+    raw[valid] = np.column_stack([tx, ty * h / max(w, 1)])[valid]
+    ratio = (old / scale)
+    return _Flow(trans=raw / scale[:, None], resid=flow.resid * ratio, total=flow.total, log_zoom=log_zoom,
+                 pattern=flow.pattern * ratio[:, None, None])
 
 
 def _block_change(gray: np.ndarray, starts: np.ndarray, prm: _Params) -> np.ndarray:
@@ -387,6 +460,35 @@ def _still_frames(
         if b - a <= max_overlay and a > 0 and b < still.size and still[a - 1] and still[b]:
             still[a:b] = True
     return still
+
+
+def _hold_blips(
+    still: np.ndarray, diff: np.ndarray, usable: np.ndarray, shots: list[ShotSpan], prm: _Params
+) -> np.ndarray:
+    """Weak one- or two-frame changes inside a hold (an RGB split or glitch switching on).
+
+    A post effect that starts or stops while the footage is frozen changes the
+    picture once; the footage itself does not move. Up to ``freeze_blip_frames``
+    changed frames between two runs of at least two repeats count as repeats when
+    their change is well below the shot's typical footage step (a duplicate-frame
+    slow motion steps at full strength).
+    """
+    out = np.zeros_like(still)
+    max_blip = int(prm("freeze_blip_frames", 2))
+    side = 2
+    for shot in shots:
+        a0 = shot.f0 + 1
+        novel = usable[a0:shot.f1] & ~still[a0:shot.f1]
+        if novel.sum() < 3:
+            continue
+        level = float(np.median(diff[a0:shot.f1][novel]))
+        for a, b in _runs(novel):
+            a, b = a + a0, b + a0
+            if (b - a <= max_blip and a - side >= a0 and b + side <= shot.f1
+                    and still[a - side:a].all() and still[b:b + side].all()
+                    and float(diff[a:b].max()) < 0.5 * level):
+                out[a:b] = True
+    return out
 
 
 def _photometric_stills(
@@ -679,6 +781,7 @@ def _freezes(
     onset = float(prm("freeze_onset", 0.5))
     window = prm.frames("freeze_onset_window", 0.2, minimum=3)
     min_continuity = float(prm("freeze_continuity", 0.5))
+    edge_rel = float(prm("freeze_edge_rel", 0.5))
     novel = ok & ~st
     freezes: list[tuple[int, int, float]] = []
     for k, (kind, s, e) in enumerate(runs):
@@ -694,6 +797,11 @@ def _freezes(
         d_hold, b_hold = float(np.median(diff[s:e])), float(np.median(block[s:e]))
         if d_hold > diff_max or (d_hold > rel * d_move and b_hold > rel * b_move):
             continue  # the hold is not clearly calmer than the rest of the shot
+        # Footage stops dead into a freeze and resumes at once: the hold must also be far calmer
+        # than the steps into and out of it (motion easing to a near-stop is not a freeze).
+        edges = [float(diff[i]) for i in (s - 1, e) if 0 <= i < st.size and novel[i] and not outlier[i]]
+        if any(d_hold > edge_rel * edge for edge in edges):
+            continue
         conf = 0.9 if d_hold < 0.5 * diff_max else 0.7
         static = float(np.median(camera[moving])) < min_motion
         # Subject change in a static shot, else the mean change (flow fails on the jump out of a
@@ -898,13 +1006,32 @@ def _reference_level(values: np.ndarray, percentile: float) -> float:
 # --------------------------------------------------------------------------- speed events
 
 
-def _speed_events(r: np.ndarray, fine: np.ndarray, offset: int, prm: _Params) -> list[_SpeedEvent]:
+def _speed_events(
+    r: np.ndarray,
+    fine: np.ndarray,
+    offset: int,
+    prm: _Params,
+    pattern: Optional[np.ndarray] = None,
+    known: Optional[np.ndarray] = None,
+) -> list[_SpeedEvent]:
     """Slow-motion spans and the ramps into / out of them in one continuous run.
 
     ``r`` is the smoothed relative rate (levels, detection), ``fine`` the
-    median-only rate the ramp shapes are fitted to.
+    median-only rate the ramp shapes are fitted to. ``pattern`` ``(m, regions, 2)``
+    is the per-region footage motion of the run and ``known`` its measured
+    frames: a playback-rate change scales the motion field without changing its
+    layout, so a slow span whose motion pattern differs from the normal-speed
+    footage around it (a subject turning, stopping or leaving, the camera
+    changing direction) is natural motion and is dropped
+    (:func:`_pattern_agreement` below ``min_agreement``).
     """
     slow_rate = float(prm("slow_rate", 0.6))
+    min_agreement = float(prm("min_agreement", 0.75))
+    # The dense per-region flow is a second, independent speed measurement: it must see the
+    # slow-down too (a speed dip of the tracked translation alone is a camera turning).
+    max_pattern_rate = float(prm("pattern_slow_rate", 0.65))
+    context = prm.frames("agreement_context", 0.5, minimum=4)
+    min_normal = prm.frames("agreement_min_normal", 0.15, minimum=3)
     min_rate = float(prm("min_rate", 0.06))
     ramp_min = prm.frames("ramp_min", 0.2, minimum=4)
     slow_min = prm.frames("slowmo_min_duration", 0.2, minimum=3)
@@ -952,13 +1079,68 @@ def _speed_events(r: np.ndarray, fine: np.ndarray, offset: int, prm: _Params) ->
                     e_slow = (start + end) // 2
         if not sharp:
             continue  # a gradual drift (natural acceleration / deceleration), not an edit
+        agreement = None
+        if pattern is not None:
+            # Normal-speed footage next to the slow span (outside its ramps) vs. the slow span.
+            first = min([s_slow] + [p.f0 - offset for p in pieces])
+            last = max([e_slow] + [p.f1 - offset for p in pieces])
+            idx = np.arange(n)
+            ok = np.ones(n, bool) if known is None else known
+            normal = ok & (r >= np.sqrt(max(lo, 1e-3)))
+            slow_side = np.zeros(n, bool)
+            slow_side[a:b] = True
+            slow_side &= ok
+            sides = [normal & (idx >= max(prev_end, first - context)) & (idx < first),
+                     normal & (idx >= last) & (idx < min(next_start, last + context))]
+            ramps = [ok & (idx >= pc.f0 - offset) & (idx < pc.f1 - offset) & ~slow_side for pc in pieces]
+            # Each side with enough normal-speed footage, and the frames of each ramp, must show
+            # the motion field of the slow span; without any normal-speed footage there is
+            # nothing to compare the slow span to.
+            groups = [g for g in sides if g.sum() >= min_normal]
+            scores = [_pattern_agreement(pattern, g, slow_side) for g in groups + [g for g in ramps if g.sum() >= 3]]
+            agreement = None if not groups or any(v is None for v in scores) else min(scores)
+            if agreement is None or agreement < min_agreement:
+                continue  # the motion field changed: natural motion, not a playback-rate change
+            prate = max(_pattern_rate(pattern, g, slow_side) for g in groups)
+            if prate > max_pattern_rate:
+                continue
         if e_slow - s_slow >= slow_min:
             level = float(np.median(r[s_slow:e_slow]))
             conf = 0.4 + 0.2 * float(np.clip((slow_rate - level) / slow_rate, 0.0, 1.0)) + 0.1 * bool(pieces)
             pieces.append(_SpeedEvent("slowmo", offset + s_slow, offset + e_slow, level, level,
                                       confidence=round(conf, 3), params={"method": "motion"}))
+        if agreement is not None:
+            for p in pieces:
+                p.params["agreement"] = round(float(agreement), 3)
         events += pieces
     return events
+
+
+def _pattern_rate(pattern: np.ndarray, a: np.ndarray, b: np.ndarray) -> float:
+    """Mean motion of frames ``b`` along the summed pattern of frames ``a``, relative to that of ``a``."""
+    u = pattern[a].sum(axis=0).ravel()
+    u /= max(float(np.linalg.norm(u)), 1e-12)
+    va = float((pattern[a].reshape(int(a.sum()), -1) @ u).mean())
+    vb = float((pattern[b].reshape(int(b.sum()), -1) @ u).mean())
+    return vb / max(va, 1e-12)
+
+
+def _pattern_agreement(pattern: np.ndarray, a: np.ndarray, b: np.ndarray) -> Optional[float]:
+    """Cosine between the summed motion patterns of the frames ``a`` and ``b`` (masks), or ``None``.
+
+    Summing (rather than averaging unit vectors) lets frames with clear motion
+    dominate and averages flow noise out of slow frames. 1 means the same
+    motion field up to scale; a subject or camera that changed direction or
+    layout gives much less.
+    """
+    if a.sum() < 2 or b.sum() < 2:
+        return None
+    pa = pattern[a].sum(axis=0).ravel()
+    pb = pattern[b].sum(axis=0).ravel()
+    na, nb = float(np.linalg.norm(pa)), float(np.linalg.norm(pb))
+    if na <= 1e-9 or nb <= 1e-9:
+        return None
+    return float(pa @ pb) / (na * nb)
 
 
 def _transition(
@@ -976,13 +1158,20 @@ def _transition(
     ramp = _fit_ramp(r, fine, a, mid, lo, ramp_max, bound)
     if ramp is not None and ramp.rate_from >= float(prm("ramp_ratio", 1.8)) * ramp.rate_to:
         return ramp
-    ramp = _fit_ramp(r, fine, a, mid, lo, prm.frames("ramp_max_long", 1.0, minimum=ramp_max), bound)
-    if ramp is None or ramp.rate_from < float(prm("ramp_ratio_long", 2.5)) * ramp.rate_to:
+    ramp = _fit_ramp(r, fine, a, mid, lo, prm.frames("ramp_max_long", 2.0, minimum=ramp_max), bound)
+    if ramp is None:
         return None
+    # The plateau right before the ramp sets the level the ramp starts from (the fitted
+    # high level is the window maximum, biased up by noise).
     size = prm.frames("ramp_plateau", 0.2, minimum=3)
-    before = r[max(bound, ramp.start - 1 - size):ramp.start]
-    if before.size <= size or np.abs(before / ramp.rate_from - 1.0).max() > float(prm("plateau_tol", 0.15)):
+    before = r[max(bound, ramp.start - size):ramp.start]
+    if before.size < size:
         return None
+    level = float(np.median(before))
+    if (np.abs(before / level - 1.0).max() > float(prm("plateau_tol", 0.15))
+            or level < float(prm("ramp_ratio_long", 1.8)) * ramp.rate_to):
+        return None
+    ramp.rate_from = max(level, ramp.rate_to)
     ramp.long = ramp.end - ramp.start > ramp_max
     return ramp
 
@@ -1093,8 +1282,13 @@ def _add_fast_events(
     shots: list[ShotSpan],
     prm: _Params,
 ) -> None:
-    """``fast`` for the normal-speed part of shots moving far above the video's typical motion."""
-    if len(refs) < int(prm("fast_min_shots", 3)):
+    """``fast`` for the normal-speed part of shots moving far above the video's typical motion.
+
+    Off by default (``fast_relative_to_video``): shots of one edit differ in motion
+    for many natural reasons (a faster camera, closer framing, action), so a shot
+    moving several times faster than the others is no evidence of fast-forward.
+    """
+    if not bool(prm("fast_relative_to_video", False)) or len(refs) < int(prm("fast_min_shots", 3)):
         return
     levels = np.array([v[0] for v in refs.values()])
     weights = np.array([v[1] for v in refs.values()], float)
@@ -1137,8 +1331,12 @@ def _merge_duplicate_slowmo(
     A motion-based ``slowmo`` lying inside a repetition region gets its rate from
     the cadence (mean novel-to-novel gap); regions no motion event explains (e.g.
     shots too static to judge by magnitude) become ``slowmo`` nodes of their own.
+    The cadence is direct evidence, so motion-based events that only partly
+    overlap such a region give way to it: those mostly inside it are dropped,
+    the others keep their longer part outside it.
     """
     max_rate = float(prm("dup_max_rate", 0.75))
+    min_len = prm.frames("slowmo_min_duration", 0.2, minimum=3)
     for shot_index, a, b, q in dup_regions:
         evs = events.setdefault(shot_index, [])
         inside = [ev for ev in evs if ev.kind == "slowmo"
@@ -1153,9 +1351,27 @@ def _merge_duplicate_slowmo(
                 ev.confidence = max(ev.confidence, 0.8)
                 ev.params = {"method": "frame_repeat", "repeat": round(1.0 / rate, 2)}
         rate = q / q_base
-        if rate <= max_rate and not any(min(ev.f1, b) - max(ev.f0, a) > 0 for ev in evs):
-            evs.append(_SpeedEvent("slowmo", a, b, rate, rate, confidence=0.75,
-                                   params={"method": "frame_repeat", "repeat": round(1.0 / rate, 2)}))
+        overlapping = [ev for ev in evs if min(ev.f1, b) - max(ev.f0, a) > 0]
+        if rate > max_rate or any(ev.params.get("method") == "frame_repeat" for ev in overlapping):
+            continue
+        for ev in overlapping:
+            evs.remove(ev)
+            if min(ev.f1, b) - max(ev.f0, a) > 0.5 * (ev.f1 - ev.f0):
+                continue
+            f0, f1 = (ev.f0, a) if a - ev.f0 >= ev.f1 - b else (b, ev.f1)
+            if f1 - f0 >= min_len:
+                evs.append(_trim(ev, f0, f1))
+        evs.append(_SpeedEvent("slowmo", a, b, rate, rate, confidence=0.75,
+                               params={"method": "frame_repeat", "repeat": round(1.0 / rate, 2)}))
+        evs.sort(key=lambda ev: ev.f0)
+
+
+def _trim(ev: _SpeedEvent, f0: int, f1: int) -> _SpeedEvent:
+    """``ev`` cut to ``[f0, f1)``, its end rates interpolated along the ramp."""
+    def at(f: int) -> float:
+        return ev.rate_from + (ev.rate_to - ev.rate_from) * (f - ev.f0) / max(1, ev.f1 - ev.f0)
+
+    return _SpeedEvent(ev.kind, f0, f1, at(f0), at(f1), ev.easing, ev.confidence, dict(ev.params))
 
 
 def _to_speed(ctx: AnalysisContext, ev: _SpeedEvent, rate: np.ndarray, step: int) -> Speed:

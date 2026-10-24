@@ -54,11 +54,13 @@ def segmentation(lengths, transitions=()) -> ShotSegmentation:
     return ShotSegmentation(shots=shots, transitions=list(transitions), boundary_score=np.zeros(int(b[-1])))
 
 
-def analyze(frames, seg=None, motion=None, noise: float = 0.0) -> EffectsResult:
+def analyze(frames, seg=None, motion=None, noise: float = 0.0, **params) -> EffectsResult:
     if noise:
         rng = np.random.default_rng(0)
         frames = np.clip(frames + rng.normal(0.0, noise, frames.shape), 0, 255).astype(np.uint8)
     ctx = context_from_arrays(frames, FPS)
+    if params:
+        ctx = replace(ctx, config=AnalysisConfig(params={"timefx": params}))
     return analyze_time_effects(ctx, seg or segmentation([len(frames)]), motion)
 
 
@@ -132,6 +134,45 @@ def test_long_ramp_from_plateau_and_natural_deceleration():
     assert not all_effects(analyze(camera(np.linspace(0.3, 1.5, 60))))
 
 
+def test_long_ramp_up_from_shot_start():
+    """A ramp may start on the shot's first frame and take most of the shot (no slow plateau
+    before it); the normal-speed plateau after it anchors it as an edit."""
+    rate = np.r_[eased(45, 0.4, 1.0, "ease_in"), np.ones(30)]
+    sp = effects(analyze(camera(rate)), "speed")
+    ups = [e for e in sp if e.kind == "ramp_up"]
+    assert len(ups) == 1, [e.kind for e in sp]
+    assert frames_of(ups[0])[1] == pytest.approx(45, abs=6)
+    assert ups[0].rate_from < 0.65 and ups[0].rate_to == pytest.approx(1.0, rel=0.25)
+    assert all(e.start < ups[0].end for e in sp)  # nothing after the ramp: normal speed
+
+
+def camera_path(vel, seed: int = 0, size=(W, H)) -> np.ndarray:
+    """Frames of a camera moving with per-frame velocity ``vel`` (n, 2) px over a large texture."""
+    vel = np.asarray(vel, float)
+    w, h = size
+    pos = np.vstack([[0.0, 0.0], np.cumsum(vel[:-1], axis=0)])
+    lo, hi = pos.min(axis=0), pos.max(axis=0)
+    canvas = synth.texture(int(h * 1.6 + hi[1] - lo[1]), int(w * 1.6 + hi[0] - lo[0]), seed)
+    out = np.empty((len(vel), h, w, 3), np.uint8)
+    for i, (px, py) in enumerate(pos - lo):
+        m = np.float32([[1, 0, -(0.3 * w + px)], [0, 1, -(0.3 * h + py)]])
+        out[i] = cv2.warpAffine(canvas, m, (w, h), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT_101)
+    return out
+
+
+def test_speed_dip_with_changed_motion_is_natural():
+    """A playback-rate change scales the motion field; a camera that slows down while turning
+    (the field changes direction) is natural motion, not slow motion."""
+    fast = np.tile([5.0, 1.0], (40, 1))
+    turned = np.r_[fast, np.tile([0.3, 1.6], (25, 1)), fast]
+    assert not effects(analyze(camera_path(turned), noise=1.0), "speed")
+    # Control: the same dip keeping the direction of travel is slow motion.
+    scaled = np.r_[fast, np.tile([1.5, 0.3], (25, 1)), fast]
+    sp = effects(analyze(camera_path(scaled), noise=1.0), "speed")
+    assert [e.kind for e in sp] == ["slowmo"]
+    assert sp[0].params["agreement"] > 0.9
+
+
 def test_duplicate_frame_slow_motion():
     src = np.r_[np.arange(40), 40 + np.repeat(np.arange(20), 2), 60 + np.arange(40)]
     res = analyze(camera(np.ones(100))[src])
@@ -143,6 +184,25 @@ def test_duplicate_frame_slow_motion():
     assert not effects(res, "freeze")
 
 
+def test_duplicate_cadence_overrides_overlapping_motion_estimates():
+    """Motion-based events straddling a repeated-frame region give way to the cadence
+    (the Sintel trailer's 0.5x shot came out as a motion ramp_down plus a stub)."""
+    from editast.analyzers.timefx import _merge_duplicate_slowmo, _Params, _SpeedEvent
+
+    prm = _Params(context_from_arrays(np.zeros((2, 8, 8, 3), np.uint8), FPS))
+    novel = np.zeros(200, bool)
+    novel[40:80:2] = True
+    lead = _SpeedEvent("ramp_down", 20, 50, 1.0, 0.5, params={"method": "motion"})  # 20 of 30 frames outside
+    ramp = _SpeedEvent("ramp_down", 44, 70, 1.0, 0.5, params={"method": "motion"})  # inside
+    stub = _SpeedEvent("slowmo", 70, 84, 0.5, 0.5, params={"method": "motion"})  # mostly inside
+    events = {0: [lead, ramp, stub]}
+    _merge_duplicate_slowmo(events, [(0, 40, 80, 0.5)], novel, 1.0, prm)
+    evs = events[0]
+    assert [(ev.kind, ev.f0, ev.f1) for ev in evs] == [("ramp_down", 20, 40), ("slowmo", 40, 80)]
+    assert evs[0].rate_to == pytest.approx(1.0 - 0.5 * 20 / 30)
+    assert evs[1].params["method"] == "frame_repeat" and evs[1].rate_from == pytest.approx(0.5)
+
+
 def test_uniform_frame_doubling_is_not_slow_motion():
     """30 fps footage in a 60 fps container repeats every frame everywhere."""
     frames = np.repeat(camera(np.ones(60), v=(8.0, 2.0)), 2, axis=0)
@@ -152,7 +212,11 @@ def test_uniform_frame_doubling_is_not_slow_motion():
 def test_fast_shot_relative_to_video():
     shots = [camera(np.ones(45), seed=s, v=(2.0, 0.5)) for s in range(4)]
     shots.append(camera(np.ones(45), seed=9, v=(9.0, 2.0)))
-    res = analyze(np.concatenate(shots), segmentation([45] * 5))
+    frames, seg = np.concatenate(shots), segmentation([45] * 5)
+    # A shot moving faster than the others is no evidence of fast-forward by default ...
+    assert not all_effects(analyze(frames, seg))
+    # ... but the comparison across shots can be switched on.
+    res = analyze(frames, seg, fast_relative_to_video=True)
     fast = effects(res, "speed", shot=4)
     assert len(fast) == 1 and fast[0].kind == "fast"
     assert fast[0].rate_from == pytest.approx(4.5, rel=0.35)
@@ -173,6 +237,16 @@ def test_freeze_inside_moving_shot():
     assert fz[0].params["frames"] == 8 and fz[0].confidence >= 0.7
     assert not effects(res, "speed")
     assert res.signals["frame_repeat"][51:58].all()
+
+
+def test_freeze_with_pixel_effect_switching_on_during_the_hold():
+    frames = camera(np.ones(100))
+    frames[50:62] = frames[50]  # frame 50 held for 12 frames
+    for i in range(55, 70):  # an RGB split switches on in the middle of the hold
+        frames[i] = fx.rgb_split(frames[i], 0.02)
+    fz = effects(analyze(frames), "freeze")
+    assert len(fz) == 1
+    assert_span(fz[0], 50, 62, tol=1)
 
 
 def test_freeze_at_shot_end_and_start():
