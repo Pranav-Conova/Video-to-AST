@@ -14,22 +14,30 @@ Algorithm
    (``cv2.estimateAffinePartial2D``). It is decomposed exactly like
    :func:`editast.fx.similarity_matrix`: ``scale``, ``angle = atan2(M01, M00)`` (degrees,
    CCW positive) and the displacement of the frame centre ``(w/2, h/2)`` normalised by
-   width / height. Without a trustworthy fit the translation comes from
-   ``cv2.phaseCorrelate`` (scale 1, ``valid=False``). ``magnitude`` is the mean length of
-   all forward-backward consistent tracks, so it stays meaningful under parallax or
-   independent motion.
+   width / height. A failed pair is retried on contrast-normalised frames when the two
+   frames differ in brightness / contrast (flash, fade, exposure) and with the second
+   frame inverted when they are anti-correlated (invert effect, glitch). Pairs that still
+   fail (a blank frame) are bridged by measuring the frames on either side of the gap and
+   splitting that motion into equal steps (used for the curves, ``valid=False``). Without
+   any fit the translation comes from a verified ``cv2.phaseCorrelate`` (scale 1,
+   ``valid=False``). ``magnitude`` is the mean length of all forward-backward consistent
+   tracks, so it stays meaningful under parallax or independent motion.
 2. **Integration** per shot: log-scale, angle and centre displacement increments are
-   summed into cumulative curves. Frames without a similarity fit borrow interpolated
-   scale / angle increments from their neighbours; transition frames contribute nothing.
+   summed into cumulative curves. Short unmeasured stretches (dissolve frames, failed
+   tracking) borrow interpolated increments from their neighbours; long ones count as
+   no motion. Effects need most of their frames measured (``min_coverage``).
 3. **Zoom**: a zig-zag (hysteresis) filter splits the lightly smoothed log-scale curve
    into monotone legs; legs changing by more than ``zoom_threshold`` become
    :class:`~editast.ast.nodes.Zoom` nodes. Start, end and easing come from a
    least-squares fit with free endpoints of every easing in :data:`FIT_EASINGS` to the
    cumulative *scale*, because the renderer interpolates scale linearly through the
    easing (:func:`editast.fx.interp`). The centre is the fixed point of the inter-frame
-   transforms (regression of the centre displacement on ``scale - 1``). The
+   transforms: the centre displacement is regressed on ``r_t - 1`` against a pan whose
+   velocity varies smoothly over the zoom plus a margin (frames of neighbouring pans
+   and zooms excluded, so pans are found once with centred zooms first). The
    zoom-induced centre displacement is then removed from the translation curve, so an
-   off-centre zoom does not read as a pan.
+   off-centre zoom does not read as a pan. ``digital`` is True for a rigid, cleanly
+   eased scale (low residual, high RANSAC inlier fraction) and False under parallax.
 4. **Pan / rotate**: the same leg detection on a Savitzky-Golay trend
    (``smooth_seconds``) of the translation (x and y legs are merged into one pan) and
    angle curves, then the same easing fit on the unsmoothed curves.
@@ -38,8 +46,10 @@ Algorithm
    their spans and minus the Savitzky-Golay trend elsewhere, so fast eased moves do not
    leak into it. Runs above ``shake_threshold`` (per-axis peak, estimated as
    ``sqrt(2) * RMS`` as for sinusoidal jitter) that last ``shake_min_duration`` and
-   actually oscillate become :class:`~editast.ast.nodes.Shake` nodes. The frequency is
-   the peak of the residual's power spectrum.
+   actually oscillate become :class:`~editast.ast.nodes.Shake` nodes (snapped to a shot
+   edge within ``shake_edge_seconds``). The frequency is the peak of the per-axis power
+   spectra, summed after aligning them on the renderer's axis ratios
+   (:data:`_SHAKE_AXIS_RATIOS`), so it means the same as ``Shake.frequency`` when rendered.
 6. **Summary**: one :class:`~editast.ast.nodes.MotionSummary` per shot (cumulative zoom,
    pan and rotation, mean flow magnitude and a coarse camera class).
 
@@ -69,7 +79,7 @@ from editast.analyzers.types import (
     ShotSegmentation,
     ShotSpan,
 )
-from editast.ast.nodes import CameraMove, Keyframe, MotionSummary, Pan, Rotate, Shake, Zoom
+from editast.ast.nodes import CameraMove, EffectBase, Keyframe, MotionSummary, Pan, Rotate, Shake, Zoom
 from editast.context import AnalysisContext
 
 NAME = "motion"
@@ -83,6 +93,11 @@ _PUNCH_TOLERANCE = 1.5  # it may have this multiple of the best smooth easing's 
 _SHAPE_TOLERANCE = 0.015  # ... plus RMS deviations of this fraction of the move per frame
 _PUNCH_MARGIN = 0.6  # a slower punch must reach this fraction of the best smooth easing's SSE
 _N_KEYFRAMES = 8
+#: Jitter frequency of the x, y and rotation axes relative to ``Shake.frequency`` as the
+#: renderer produces it (y from :func:`editast.fx.shake_offset`, rotation from
+#: ``editast.render.compiler``); the spectra are aligned on this before peak picking.
+_SHAKE_AXIS_RATIOS: tuple[float, float, float] = (1.0, 1.13, 0.9)
+_FLAT_STD = 3.0  # grey levels; frames with less contrast are blank (nothing to track)
 #: Transitions that only change intensity; the motion under them stays measurable.
 _PHOTOMETRIC: tuple[str, ...] = ("flash", "fade_black", "fade_white")
 
@@ -110,6 +125,9 @@ class _Params:
     min_inlier_ratio: float = 0.3
     min_phase_response: float = 0.05  # phaseCorrelate peak needed for the fallback translation
     min_shift_correlation: float = 0.5  # ZNCC of the frames aligned by the fallback translation
+    bridge_seconds: float = 0.4  # longest gap of failed pairs measured across
+    fill_seconds: float = 0.5  # longer unmeasured stretches are taken as "no motion"
+    min_coverage: float = 0.5  # fraction of an effect's frames that must be measured
     frozen_flow: float = 0.12  # px; slower tracks are static overlays when the rest moves 3x faster
     border: int = 4  # px ignored at the frame / bar edges
     bar_range: float = 12.0  # grey levels: flatter rows / columns at the edges are bars
@@ -120,15 +138,19 @@ class _Params:
     rotate_threshold: float = 3.0  # degrees
     center_snap: float = 0.05  # zoom centres this close to 0.5 (per axis) snap to 0.5
     center_margin: float = 0.25  # seconds around a zoom that also constrain the pan velocity
-    center_min_shift: float = 0.0015  # RMS px/frame (fraction of width) an off-centre zoom must explain
+    center_min_shift: float = 0.01  # total centre shift (fraction of width) an off-centre zoom must explain
     center_min_seconds: float = 0.3  # measured frames needed to place a zoom off-centre
-    digital_residual: float = 0.004  # mean fit residual (width) below which a zoom is digital
-    parallax_residual: float = 0.01  # above this the zoom is a camera move (parallax)
+    digital_residual: float = 0.004  # mean fit residual (width) below which a zoom can be digital
+    digital_inliers: float = 0.8  # ... with at least this RANSAC inlier fraction ...
+    digital_r2: float = 0.98  # ... and a clean eased scale curve (R^2 of the easing fit)
+    parallax_residual: float = 0.01  # above this residual the motion is not one rigid layer
+    parallax_inliers: float = 0.6  # below this inlier fraction: parallax / independent motion
     # --- shake
     shake_threshold: float = 0.004  # per-axis peak offset, fraction of width
     shake_rotation_threshold: float = 0.5  # degrees
     shake_window: float = 0.3  # seconds, windowed RMS
     shake_min_duration: float = 0.25  # seconds
+    shake_edge_seconds: float = 0.1  # shakes this close to a shot edge are extended to it
 
     @classmethod
     def from_context(cls, ctx: AnalysisContext) -> "_Params":
@@ -182,6 +204,7 @@ class _Pair:
     dx: float = 0.0  # displacement of the frame centre
     dy: float = 0.0
     residual: float = 0.0  # mean inlier reprojection error
+    inliers: float = 0.0  # fraction of the consistent tracks that fit the similarity
     magnitude: float = 0.0  # mean track length
     flow: bool = False  # whether ``magnitude`` was measured
     quality: int = 0  # 2 = similarity fit, 1 = translation only, 0 = nothing
@@ -293,6 +316,7 @@ class _PairEstimator:
         pair.angle = math.degrees(math.atan2(m[0, 1], m[0, 0]))
         pair.dx, pair.dy = float(d[0]), float(d[1])
         pair.residual = float(np.linalg.norm(a[inl] @ m[:, :2].T + m[:, 2] - b[inl], axis=1).mean())
+        pair.inliers = float(inl.mean())
         pair.quality = 2
         return True
 
@@ -364,7 +388,9 @@ class _Estimates:
     tx: np.ndarray  # centre displacement, fraction of width
     ty: np.ndarray  # fraction of height
     residual: np.ndarray  # fraction of width
+    inliers: np.ndarray  # RANSAC inlier fraction of the similarity fit
     quality: np.ndarray  # 2 = similarity fit, 1 = translation only, 0 = nothing
+    bridged: np.ndarray  # one step of a motion measured across a gap of failed pairs
 
 
 def _estimate_frame_motion(
@@ -373,59 +399,130 @@ def _estimate_frame_motion(
     n = ctx.n_frames
     w, h = ctx.size
     trans, photometric = _transition_masks(seg, n)
-    est = _Estimates(np.ones(n), np.zeros(n), np.zeros(n), np.zeros(n), np.zeros(n), np.zeros(n, np.int8))
+    est = _Estimates(np.ones(n), np.zeros(n), np.zeros(n), np.zeros(n), np.zeros(n), np.zeros(n),
+                     np.zeros(n, np.int8), np.zeros(n, bool))
     magnitude = np.zeros(n)
+    measured = np.zeros(n, bool)  # magnitude measured
+    attempted = np.zeros(n, bool)  # pair t-1 -> t was measured (not skipped as a transition)
     estimator = _PairEstimator(w, h, prm)
+    max_bridge = max(2, int(round(prm.bridge_seconds * ctx.fps)))
+
+    def store(t: int, p: _Pair, steps: int = 1) -> None:
+        """Record ``p`` as increment ``t`` (one of ``steps`` equal steps of a bridge)."""
+        est.quality[t] = p.quality
+        est.residual[t], est.inliers[t] = p.residual / w, p.inliers
+        if p.quality == 2:
+            est.scale[t], est.rotation[t] = p.scale ** (1.0 / steps), p.angle / steps
+        # Centre displacement of one step: the steps compose to the measured displacement
+        # d = sum_j z^j d_1 with z the step's complex scale-rotation (image y points down).
+        z = complex(est.scale[t] * np.exp(-1j * np.radians(est.rotation[t])))
+        series = (z ** steps - 1.0) / (z - 1.0) if abs(z - 1.0) > 1e-9 else float(steps)
+        d = complex(p.dx, p.dy) / series
+        est.tx[t], est.ty[t] = d.real / w, d.imag / h
+        magnitude[t], measured[t] = p.magnitude / w / steps, p.flow
+        est.bridged[t] = steps > 1
+
     for shot in shots:
         box = _content_box(ctx.gray[shot.f0:shot.f1], prm)
-        measured = np.zeros(shot.n_frames, bool)
         for t in range(shot.f0 + 1, shot.f1):
-            g0, g1 = ctx.gray[t - 1], ctx.gray[t]
-            if trans[t] or trans[t - 1]:
-                # A flash / fade only re-lights the content (I' = a I + b per frame), so the
-                # motion is still measurable on contrast-normalised frames. Dissolves mix two
-                # shots and whip / zoom / spin transitions add motion of their own: skipped.
-                if not (photometric[t - 1] and photometric[t]):
-                    continue
-                g0, g1 = _normalise_contrast(g0), _normalise_contrast(g1)
-                if g0 is None or g1 is None:
-                    continue
-            p = estimator(g0, g1, box)
-            est.quality[t] = p.quality
+            # A flash / fade only re-lights the content (I' = a I + b per frame), so the
+            # motion is still measurable on contrast-normalised frames. Dissolves mix two
+            # shots and whip / zoom / spin transitions add motion of their own: skipped.
+            relit = bool(trans[t] or trans[t - 1])
+            if relit and not (photometric[t - 1] and photometric[t]):
+                continue
+            attempted[t] = True
+            store(t, _measure(estimator, ctx.gray[t - 1], ctx.gray[t], box, relit))
+        # Bridge failed pairs (a flash, glitch or inverted frame, a blank frame inside the
+        # shot) by measuring the frames on either side of the gap directly; the motion is
+        # split into equal steps.
+        sl = slice(shot.f0, shot.f1)
+        for a, b in _runs(attempted[sl] & (est.quality[sl] < 2)):
+            a, b = a + shot.f0, b + shot.f0
+            i, j = a - 1, b - 1  # last frame before / last frame of the gap
+            if not 2 <= b - a <= max_bridge or not (photometric[i] and photometric[j]):
+                continue
+            p = _measure(estimator, ctx.gray[i], ctx.gray[j], box, bool(trans[i] or trans[j]))
             if p.quality == 2:
-                est.scale[t], est.rotation[t], est.residual[t] = p.scale, p.angle, p.residual / w
-            est.tx[t], est.ty[t] = p.dx / w, p.dy / h
-            magnitude[t] = p.magnitude / w
-            measured[t - shot.f0] = p.flow
-        _fill_gaps(magnitude[shot.f0:shot.f1], measured)
+                for t in range(a, b):
+                    store(t, p, b - a)
+        _fill_gaps(magnitude[sl], measured[sl])
     # The public per-frame motion is identity / invalid wherever a transition frame is involved.
     clean = ~(trans | np.concatenate([[False], trans[:-1]]))
     fm = FrameMotion(
         scale=np.where(clean, est.scale, 1.0), rotation=np.where(clean, est.rotation, 0.0),
         tx=np.where(clean, est.tx, 0.0), ty=np.where(clean, est.ty, 0.0),
-        residual=np.where(clean, est.residual, 0.0), valid=clean & (est.quality == 2),
-        magnitude=magnitude,
+        residual=np.where(clean, est.residual, 0.0),
+        valid=clean & (est.quality == 2) & ~est.bridged, magnitude=magnitude,
     )
     return fm, est
 
 
-def _normalise_contrast(gray: np.ndarray) -> Optional[np.ndarray]:
-    """``gray`` with mean 128 and standard deviation 48, or ``None`` for a (nearly) flat frame."""
-    mean, std = (float(v[0, 0]) for v in cv2.meanStdDev(gray))
-    if std < 3.0:
-        return None
-    out = (gray.astype(np.float32) - mean) * (48.0 / std) + 128.0
+def _measure(estimator: _PairEstimator, g0: np.ndarray, g1: np.ndarray, box: tuple[int, int, int, int],
+             relit: bool) -> _Pair:
+    """Similarity between two frames.
+
+    Contrast-normalised frames are used when ``relit`` (flash / fade transition) and as a
+    retry when the plain frames give no fit: in-shot flashes and exposure changes are
+    affine in intensity, and an inverted frame (invert effect / glitch) is the same with a
+    negative gain, so the last retry inverts the second frame.
+    """
+    best = _Pair() if relit else estimator(g0, g1, box)
+    if best.quality == 2:
+        return best
+    (m0, s0), (m1, s1) = _photometry(g0), _photometry(g1)
+    if min(s0, s1) < _FLAT_STD:
+        return best
+    n0, n1 = _normalise_contrast(g0, m0, s0), _normalise_contrast(g1, m1, s1)
+    # Retry only where normalisation changes something (the frames were re-lit) and with
+    # inversion only for anti-correlated frames: failures on unstructured footage (noise,
+    # blur) must not cost three tracking passes.
+    seconds = []
+    if relit or abs(m0 - m1) > 8.0 or abs(math.log(s0 / s1)) > 0.2:
+        seconds.append(n1)
+    if _correlation(n0, n1) < -0.2:
+        seconds.append(255 - n1)
+    for second in seconds:
+        p = estimator(n0, second, box)
+        if p.quality > best.quality:
+            best = p
+        if best.quality == 2:
+            break
+    return best
+
+
+def _photometry(gray: np.ndarray) -> tuple[float, float]:
+    """Mean and standard deviation of a grey frame."""
+    mean, std = cv2.meanStdDev(gray)
+    return float(mean[0, 0]), float(std[0, 0])
+
+
+def _correlation(a: np.ndarray, b: np.ndarray) -> float:
+    """Zero-mean normalised cross-correlation of two frames at quarter resolution."""
+    x, y = (cv2.resize(g, None, fx=0.25, fy=0.25, interpolation=cv2.INTER_AREA).astype(np.float32).ravel()
+            for g in (a, b))
+    x -= x.mean()
+    y -= y.mean()
+    den = math.sqrt(float(x @ x) * float(y @ y))
+    return float(x @ y) / den if den > 0 else 0.0
+
+
+def _normalise_contrast(gray: np.ndarray, mean: float, std: float) -> np.ndarray:
+    """``gray`` (with the given mean / standard deviation) mapped to mean 128, std 48."""
+    out = (gray.astype(np.float32) - mean) * (48.0 / max(std, 1e-6)) + 128.0
     return np.clip(out, 0.0, 255.0).astype(np.uint8)
 
 
-def _fill_gaps(values: np.ndarray, known: np.ndarray, k: int = 3) -> None:
+def _fill_gaps(values: np.ndarray, known: np.ndarray, max_gap: Optional[int] = None, k: int = 3) -> None:
     """In place: fill ``values[1:]`` where not ``known`` (index 0, the shot start, is kept).
 
     Used for frames without a trustworthy measurement (transition frames, flashes,
-    blank frames): the motion there is unknown, which the neighbouring motion
-    approximates better than "no motion" or a bogus estimate. A gap is bridged
+    blank frames): over a short gap the motion is better approximated by the
+    neighbouring motion than by "no motion" or a bogus estimate. A gap is bridged
     linearly between the means of up to ``k`` known values on either side, so a
-    single jittery neighbour (shake) is not held across a long gap.
+    single jittery neighbour (shake) is not held across it. Gaps longer than
+    ``max_gap`` keep their values: extrapolating motion into a long unmeasured
+    stretch would invent it.
     """
     gaps = ~known
     gaps[0] = False
@@ -433,6 +530,8 @@ def _fill_gaps(values: np.ndarray, known: np.ndarray, k: int = 3) -> None:
         return
     ki = np.flatnonzero(known)
     for a, b in _runs(gaps):
+        if max_gap is not None and b - a > max_gap:
+            continue
         left, right = ki[ki < a][-k:], ki[ki >= b][:k]
         lv = values[left].mean() if left.size else None
         rv = values[right].mean() if right.size else None
@@ -443,8 +542,10 @@ def _fill_gaps(values: np.ndarray, known: np.ndarray, k: int = 3) -> None:
 
 
 def _shot_spans(seg: ShotSegmentation, n: int) -> list[ShotSpan]:
+    if n == 0:
+        return []
     spans = [ShotSpan(s.index, max(0, s.f0), min(n, s.f1)) for s in seg.shots if min(n, s.f1) > max(0, s.f0)]
-    return spans or [ShotSpan(0, 0, n)] if n else []
+    return spans or [ShotSpan(0, 0, n)]
 
 
 def _transition_masks(seg: ShotSegmentation, n: int) -> tuple[np.ndarray, np.ndarray]:
@@ -679,7 +780,7 @@ class _Curves:
 
 @dataclass
 class _ShotResult:
-    effects: list
+    effects: list[EffectBase]
     summary: MotionSummary
     curves: _Curves
     shake_level: np.ndarray
@@ -700,14 +801,16 @@ class _ShotAnalyzer:
         self.good = est.quality[sl] == 2  # similarity fit (never at index 0)
         self.has_t = est.quality[sl] >= 1  # measured translation
         self.residual = est.residual[sl]
+        self.inliers = est.inliers[sl]
         self.magnitude = fm.magnitude[sl]
 
         # Per-frame increments; unmeasured frames (dissolves, failed tracking) borrow
         # interpolated increments from their neighbours (see module docstring, step 2).
         log_r, ang = np.log(est.scale[sl]), est.rotation[sl].copy()
         disp = est.tx[sl] * self.w + 1j * est.ty[sl] * self.h  # centre displacement, px
+        max_gap = max(1, int(round(prm.fill_seconds * self.fps)))
         for values, known in ((log_r, self.good), (ang, self.good), (disp, self.has_t)):
-            _fill_gaps(values, known)
+            _fill_gaps(values, known, max_gap)
         self.inc_ratio = np.exp(log_r)
         self.inc_disp = disp
         self.log_scale = np.cumsum(log_r)
@@ -717,17 +820,18 @@ class _ShotAnalyzer:
     # ------------------------------------------------------------------ driver
 
     def run(self) -> _ShotResult:
-        zooms, zoom_fits, centers = self._zooms()
-        # Remove the centre displacement caused by off-centre zooms before looking for pans.
-        disp = self.inc_disp.copy()
-        m = complex(self.w / 2.0, self.h / 2.0)
-        for fit, (cx, cy) in zip(zoom_fits, centers):
-            k = (self.idx > fit.t0) & (self.idx <= fit.t1 + 1)
-            c = complex(cx * self.w, cy * self.h)
-            disp[k] -= (self.inc_ratio[k] - 1.0) * (m - c)
-        cum = np.cumsum(disp)
-        pan_x, pan_y = cum.real / self.w, cum.imag / self.h
+        zooms, zoom_fits = self._zooms()
+        # Pans are first detected with centred zooms. Each zoom centre is then estimated
+        # without the frames of pans that do not overlap it, and the pans are detected
+        # again with the off-centre displacement removed (it is not camera motion).
+        pan_x, pan_y = self._pan_curves(zoom_fits, [(0.5, 0.5)] * len(zoom_fits))
         pans, pan_fits = self._pans(pan_x, pan_y)
+        centers = [self._zoom_center(fit, zoom_fits, pan_fits) for fit in zoom_fits]
+        if any(c != (0.5, 0.5) for c in centers):
+            for zoom, center in zip(zooms, centers):
+                zoom.center = center
+            pan_x, pan_y = self._pan_curves(zoom_fits, centers)
+            pans, pan_fits = self._pans(pan_x, pan_y)
         rotates, rot_fits = self._rotates()
         shakes, level = self._shakes(pan_x, pan_y, pan_fits, rot_fits)
         curves = _Curves(self.log_scale, self.angle, pan_x, pan_y)
@@ -735,21 +839,42 @@ class _ShotAnalyzer:
         summary = self._summary(curves, zooms, pans, rotates, shakes, level)
         return _ShotResult(effects, summary, curves, level)
 
+    def _pan_curves(self, zoom_fits: list[_Fit], centers: list[tuple[float, float]]) -> tuple[np.ndarray, np.ndarray]:
+        """Cumulative content displacement (x / width, y / height) with the centre
+        displacement of off-centre zooms, ``(r_t - 1) (m - c)``, removed."""
+        disp = self.inc_disp.copy()
+        m = complex(self.w / 2.0, self.h / 2.0)
+        for fit, (cx, cy) in zip(zoom_fits, centers):
+            k = self._span(fit)
+            disp[k] -= (self.inc_ratio[k] - 1.0) * (m - complex(cx * self.w, cy * self.h))
+        cum = np.cumsum(disp)
+        return cum.real / self.w, cum.imag / self.h
+
     # ------------------------------------------------------------------ helpers
+
+    def _span(self, fit: _Fit, margin: float = 0.0) -> np.ndarray:
+        """Frames whose increment (from the previous frame) lies in a fitted move (+ margin)."""
+        return (self.idx > fit.t0 - margin) & (self.idx <= fit.t1 + 1.0 + margin)
 
     def _time(self, i: float) -> float:
         """Shot-relative (fractional) frame -> absolute seconds, clamped to the shot."""
         return self.ctx.t(self.shot.f0 + float(np.clip(i, 0.0, self.n)))
 
     def _quality(self, i0: float, i1: float, r2: float) -> float:
-        """Confidence of an effect over shot-relative frames ``(i0, i1]``."""
+        """Confidence of an effect over shot-relative frames ``(i0, i1]``: the share of
+        frames with a similarity fit, how well that fit explains the tracks (residual,
+        inlier fraction) and how well the eased model explains the curve (``r2``)."""
+        prm = self.prm
         k = (self.idx > i0) & (self.idx <= i1) & self.inside
         if not k.any():
             return 0.0
         valid = float(self.good[k].mean())
-        res = float(self.residual[k & self.good].mean()) if (k & self.good).any() else self.prm.parallax_residual
-        res_factor = float(np.clip(1.0 - res / (2.0 * self.prm.parallax_residual), 0.2, 1.0))
-        return round(valid * res_factor * (0.5 + 0.5 * max(0.0, min(1.0, r2))), 3)
+        fitted = k & self.good
+        res = float(self.residual[fitted].mean()) if fitted.any() else prm.parallax_residual
+        inl = float(self.inliers[fitted].mean()) if fitted.any() else prm.parallax_inliers
+        res_factor = float(np.clip(1.0 - res / (2.0 * prm.parallax_residual), 0.2, 1.0))
+        inl_factor = float(np.clip(inl / prm.digital_inliers, 0.5, 1.0))
+        return round(valid * res_factor * inl_factor * (0.5 + 0.5 * max(0.0, min(1.0, r2))), 3)
 
     def _observed(self, curve: np.ndarray, known: np.ndarray, fit: _Fit) -> float:
         """Change of ``curve`` over a fitted move counting only measured increments.
@@ -759,6 +884,11 @@ class _ShotAnalyzer:
         """
         inc = np.diff(curve, prepend=curve[:1])
         return float(inc[(self.idx > fit.t0) & (self.idx <= fit.t1) & known].sum())
+
+    def _covered(self, known: np.ndarray, fit: _Fit) -> bool:
+        """Were enough of the increments of a fitted move measured to trust it at all?"""
+        k = (self.idx > fit.t0) & (self.idx <= fit.t1) & self.inside
+        return bool(k.any()) and float(known[k].mean()) >= self.prm.min_coverage
 
     def _change(self, curve: np.ndarray, fit: _Fit) -> float:
         """Change of ``curve`` between the start and the end of a fitted move."""
@@ -771,15 +901,16 @@ class _ShotAnalyzer:
 
     # ------------------------------------------------------------------ zoom
 
-    def _zooms(self) -> tuple[list[Zoom], list[_Fit], list[tuple[float, float]]]:
+    def _zooms(self) -> tuple[list[Zoom], list[_Fit]]:
+        """Zoom nodes (centred; see :meth:`_zoom_center`) and their fits."""
         prm = self.prm
         if self.n < 4:
-            return [], [], []
+            return [], []
         thr = math.log1p(prm.zoom_threshold)
         smooth = gaussian_filter1d(self.log_scale, 1.0, mode="nearest")
         moves = _moves(smooth, 0.5 * thr, thr)
         scale = np.exp(self.log_scale)
-        zooms, fits, centers = [], [], []
+        zooms, fits = [], []
         for k, (a, b) in enumerate(moves):
             lo, hi = self._limits(moves, k)
             fit = _fit_move([scale], a, b, lo, hi, self.fps)
@@ -788,31 +919,35 @@ class _ShotAnalyzer:
             ratio = float((fit.offsets[0] + fit.amps[0]) / fit.offsets[0])
             if ratio <= 0 or abs(math.log(ratio)) < 0.9 * thr:
                 continue
-            if abs(self._observed(self.log_scale, self.good, fit)) < 0.75 * thr:
+            if abs(self._observed(self.log_scale, self.good, fit)) < 0.75 * thr or not self._covered(self.good, fit):
                 continue
-            center = self._zoom_center(fit)
+            # A digital zoom scales one rigid picture along a clean easing curve: every track
+            # fits it. A dolly / camera move shows parallax or independent motion (residual
+            # error, many outliers); per frame that can be subtle, so None is common.
             sel = (self.idx > fit.t0) & (self.idx <= fit.t1) & self.good
             res = float(self.residual[sel].mean()) if sel.any() else None
+            inl = float(self.inliers[sel].mean()) if sel.any() else None
             digital: Optional[bool] = None
-            if res is not None and res < prm.digital_residual:
-                digital = True
-            elif res is not None and res > prm.parallax_residual:
-                digital = False
+            if res is not None and inl is not None:
+                if res > prm.parallax_residual or inl < prm.parallax_inliers:
+                    digital = False
+                elif res < prm.digital_residual and inl >= prm.digital_inliers and fit.r2 >= prm.digital_r2:
+                    digital = True
             kt = np.linspace(fit.t0, fit.t1, _N_KEYFRAMES)
             s0 = np.interp(fit.t0, self.idx, scale)
             keyframes = [Keyframe(t=self._time(t), v=float(np.interp(t, self.idx, scale) / s0)) for t in kt]
             zooms.append(Zoom(
                 start=self._time(fit.t0), end=self._time(fit.t1 + 1.0), easing=fit.easing,
-                scale_from=1.0, scale_to=ratio, center=center, digital=digital, keyframes=keyframes,
+                scale_from=1.0, scale_to=ratio, digital=digital, keyframes=keyframes,
                 confidence=self._quality(fit.t0, fit.t1, fit.r2),
                 params={"scale_start": float(fit.offsets[0]), "fit_r2": round(fit.r2, 4),
-                        "residual": None if res is None else round(res, 5)},
+                        "residual": None if res is None else round(res, 5),
+                        "inliers": None if inl is None else round(inl, 3)},
             ))
             fits.append(fit)
-            centers.append(center)
-        return zooms, fits, centers
+        return zooms, fits
 
-    def _zoom_center(self, fit: _Fit) -> tuple[float, float]:
+    def _zoom_center(self, fit: _Fit, zoom_fits: list[_Fit], pan_fits: list[_Fit]) -> tuple[float, float]:
         """Fixed point of the zoom (normalised), separated from a simultaneous camera pan.
 
         A zoom by ``r_t = s_t / s_{t-1}`` about ``c`` over footage whose content moves
@@ -820,16 +955,26 @@ class _ShotAnalyzer:
         ``d_t = (r_t - 1) (m - c) + s_t w_t`` (the pan is magnified by the zoom). An
         off-centre zoom is exactly a centred zoom plus a pan with velocity profile
         ``r_t - 1``, so the split rests on a prior: the pan velocity varies at most
-        linearly over the zoom (plus a short margin). The centre leaves 0.5 only when
-        the off-centre term explains a substantial part of the displacement that such a
-        pan cannot (model comparison in pixels, not just a significance test, because
-        the two terms are nearly collinear for linear / ease_out zooms), and the offset
-        is significant. Punch and ease_in_out zooms can thus reveal an off-centre fixed
-        point; linear zooms read as centred zooms under a pan.
+        linearly over the zoom plus a short margin on either side. A "pan" that starts
+        and stops exactly with the zoom and follows its velocity profile is therefore
+        read as an off-centre fixed point (the more compact description of the same
+        pixels), while a pan that runs through the zoom stays a pan. The centre leaves
+        0.5 only when the off-centre term explains most of the displacement that such a
+        pan cannot (a model comparison, because the two terms are nearly collinear for
+        smooth zooms), the centre shift it implies over the zoom is visible
+        (``center_min_shift``) and the offset is significant on each axis.
         """
         prm = self.prm
-        margin = round(prm.center_margin * self.fps)
-        k = (self.idx > fit.t0 - margin) & (self.idx <= fit.t1 + 1 + margin) & self.good
+        own = self._span(fit)
+        k = self._span(fit, round(prm.center_margin * self.fps)) & self.good
+        # Other zooms, and pans just before / after this zoom, break the prior: skip them.
+        for other in zoom_fits:
+            if other is not fit:
+                k &= own | ~self._span(other)
+        for pan in pan_fits:
+            span = self._span(pan)
+            if not (span & own).any():
+                k &= ~span
         m = int(k.sum())
         if m < max(8, round(prm.center_min_seconds * self.fps)):
             return 0.5, 0.5
@@ -841,10 +986,12 @@ class _ShotAnalyzer:
         full = _lstsq(np.stack([self.inc_ratio[k] - 1.0, s, s * tau], axis=1), d)
         if pan_only is None or full is None:
             return 0.5, 0.5
-        explained = pan_only[1] - full[1]
-        if explained < max(0.5 * pan_only[1], m * (prm.center_min_shift * self.w) ** 2):
-            return 0.5, 0.5
         beta, sse, inv = full  # beta[0] = centre - fixed point, px
+        if pan_only[1] - sse < 0.5 * pan_only[1]:
+            return 0.5, 0.5
+        shift = abs(complex(beta[0])) * abs(float((self.inc_ratio[k] - 1.0).sum()))
+        if shift < prm.center_min_shift * self.w:
+            return 0.5, 0.5
         se = math.sqrt(sse / (2.0 * max(1, m - 3)) * inv[0, 0])
         c = complex(self.w / 2.0, self.h / 2.0) - complex(beta[0])
         out = []
@@ -879,6 +1026,8 @@ class _ShotAnalyzer:
                 continue  # the raw fit locked onto jitter (shake), the trend barely moves
             if math.hypot(*(self._observed(c, self.has_t, fit) for c in (pan_x, pan_y))) < 0.75 * thr:
                 continue
+            if not self._covered(self.has_t, fit):
+                continue
             pans.append(Pan(
                 start=self._time(fit.t0), end=self._time(fit.t1 + 1.0), easing=fit.easing,
                 dx=float(fit.amps[0]), dy=float(fit.amps[1]),
@@ -900,7 +1049,7 @@ class _ShotAnalyzer:
             fit = _fit_move([self.angle], a, b, lo, hi, self.fps)
             if fit is None or abs(fit.amps[0]) < 0.9 * thr or abs(self._change(trend, fit)) < 0.75 * thr:
                 continue
-            if abs(self._observed(self.angle, self.good, fit)) < 0.75 * thr:
+            if abs(self._observed(self.angle, self.good, fit)) < 0.75 * thr or not self._covered(self.good, fit):
                 continue
             kt = np.linspace(fit.t0, fit.t1, _N_KEYFRAMES)
             a0 = np.interp(fit.t0, self.idx, self.angle)
@@ -948,6 +1097,7 @@ class _ShotAnalyzer:
         min_len = max(3, int(round(prm.shake_min_duration * self.fps)))
         rad = math.pi / 360.0  # degrees -> displacement (width units) at half the width
         shakes = []
+        edge = max(1, int(round(prm.shake_edge_seconds * self.fps)))
         for a, b in _runs(mask):
             a, b = self._trim_shake(a, b, rx, ry, ra * rad)
             if b - a < min_len:
@@ -962,9 +1112,13 @@ class _ShotAnalyzer:
             dominant = max(signals, key=lambda s: float(np.mean(s * s)))
             if _oscillations(dominant) < 3:  # one-sided excursions (e.g. a nudge) are not shake
                 continue
-            freq = _dominant_frequency(signals, self.fps)
+            freq = _dominant_frequency(signals, _SHAKE_AXIS_RATIOS, self.fps)
             strength = max(amp / prm.shake_threshold, rot_amp / prm.shake_rotation_threshold)
             conf = self._quality(a - 1, b - 1, 1.0) * float(np.clip(0.5 + 0.25 * (strength - 1.0), 0.3, 1.0))
+            # The jitter of the first frame is unobservable (it is the reference) and the
+            # trim can lose a frame at either end: a shake this close to a cut starts / ends there.
+            a = 0 if a <= edge else a
+            b = self.n if b >= self.n - edge else b
             shakes.append(Shake(
                 start=self._time(a), end=self._time(b), amplitude=amp, frequency=freq,
                 rotation_amplitude=rot_amp, confidence=round(conf, 3),
@@ -989,22 +1143,24 @@ class _ShotAnalyzer:
         prm = self.prm
         meas = self.inside
         magnitude = float(self.magnitude[meas].mean()) if meas.any() else 0.0
-        zoom_ratio = float(np.exp(curves.log_scale[-1]))
-        pan = (float(curves.pan_x[-1]), float(curves.pan_y[-1]))
-        rotation = float(curves.angle[-1])
+        valid = float(self.good[meas].mean()) if meas.any() else 0.0
+        has_t = float(self.has_t[meas].mean()) if meas.any() else 0.0
+        # Cumulative curves only classify the camera when most of the shot was measured
+        # (sub-threshold moves of a slow camera); otherwise only detected effects count.
+        sim_ok, t_ok = valid >= prm.min_coverage, has_t >= prm.min_coverage
         comps: list[CameraMove] = []
-        if zooms or np.ptp(curves.log_scale) >= math.log1p(prm.zoom_threshold):
+        if zooms or (sim_ok and np.ptp(curves.log_scale) >= math.log1p(prm.zoom_threshold)):
             comps.append("zoom")
-        if pans or max(np.ptp(curves.pan_x), np.ptp(curves.pan_y)) >= prm.pan_threshold:
+        if pans or (t_ok and max(np.ptp(curves.pan_x), np.ptp(curves.pan_y)) >= prm.pan_threshold):
             comps.append("pan")
-        if rotates or np.ptp(curves.angle) >= prm.rotate_threshold:
+        if rotates or (sim_ok and np.ptp(curves.angle) >= prm.rotate_threshold):
             comps.append("rotate")
         duration = self.n / self.fps
         shaky = (sum(s.duration for s in shakes) >= 0.4 * duration
                  or (meas.any() and float(np.median(level[meas])) >= 0.5 * prm.shake_threshold))
-        valid = float(self.good[meas].mean()) if meas.any() else 0.0
         res = float(self.residual[self.good].mean()) if self.good.any() else 0.0
-        poor_fit = valid < 0.5 or res > prm.parallax_residual
+        inl = float(self.inliers[self.good].mean()) if self.good.any() else 0.0
+        poor_fit = not sim_ok or res > prm.parallax_residual or inl < prm.parallax_inliers
         camera: CameraMove
         if len(comps) > 1:
             camera = "complex"
@@ -1016,8 +1172,9 @@ class _ShotAnalyzer:
             camera = "complex"
         else:
             camera = "static"
-        return MotionSummary(magnitude=magnitude, camera=camera, zoom_ratio=zoom_ratio, pan=pan,
-                             rotation=rotation)
+        return MotionSummary(magnitude=magnitude, camera=camera, zoom_ratio=float(np.exp(curves.log_scale[-1])),
+                             pan=(float(curves.pan_x[-1]), float(curves.pan_y[-1])),
+                             rotation=float(curves.angle[-1]))
 
 
 # =========================================================================== shake helpers
@@ -1037,13 +1194,17 @@ def _oscillations(signal: np.ndarray) -> int:
     return count
 
 
-def _dominant_frequency(signals: Sequence[np.ndarray], fps: float) -> float:
-    """Peak of the summed (Hann-windowed, zero-padded) power spectrum above 0.5 Hz."""
+def _dominant_frequency(signals: Sequence[np.ndarray], ratios: Sequence[float], fps: float) -> float:
+    """Peak (above 0.5 Hz) of the summed Hann-windowed, zero-padded power spectra, where
+    signal ``k`` is expected to oscillate at ``ratios[k]`` times the returned frequency."""
     n = len(signals[0])
     nfft = max(256, 1 << int(math.ceil(math.log2(4 * n))))
     window = np.hanning(n) if n > 2 else np.ones(n)
-    power = sum(np.abs(np.fft.rfft((s - s.mean()) * window, nfft)) ** 2 for s in signals)
     freqs = np.fft.rfftfreq(nfft, 1.0 / fps)
+    power = np.zeros(len(freqs))
+    for sig, ratio in zip(signals, ratios):
+        spectrum = np.abs(np.fft.rfft((sig - sig.mean()) * window, nfft)) ** 2
+        power += np.interp(freqs * ratio, freqs, spectrum, right=0.0)
     power = np.where(freqs >= 0.5, power, 0.0)
     k = int(np.argmax(power))
     if 0 < k < len(power) - 1:  # parabolic peak interpolation

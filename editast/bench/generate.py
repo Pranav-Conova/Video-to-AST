@@ -17,8 +17,9 @@ How a case is built (:func:`build_case`):
    half-beat cuts or a 2-beat hold); one or two cuts are nudged off the beat.
 3. **Transitions** — mostly hard cuts, plus flashes (often on the drop),
    dissolves and dips to black before the drop; some cases fade in from black
-   (and a few fade out). Each seed forces one of dissolve / fade / flash so a
-   suite covers all of them.
+   (and a few fade out). Each seed forces one of dissolve / fade / flash
+   (replacing another special transition if no boundary is free), so any
+   three consecutive seeds cover all of them.
 4. **Camera** — ~45 % of shots get a camera move of 12-30 % of the frame
    width over the shot (well above the 5 % Pan threshold); they carry a
    ``Pan(params={"source": "camera"})`` in the truth. Other shots drift
@@ -28,8 +29,9 @@ How a case is built (:func:`build_case`):
    (slow-mo 0.3-0.5x or ramps, only on moving shots and never over a whole
    shot, because a constant rate is indistinguishable from a slower camera),
    freeze (0.2-0.5 s on moving shots, without zoom or shake so the held frame
-   is really static), in-shot flash on a beat, rgb_split, a short invert,
-   and one black & white shot. Pixel effects avoid transition spans.
+   is really static; odd seeds ask for one), in-shot flash on a beat,
+   rgb_split, a short invert, and one black & white shot. Pixel effects avoid
+   transition spans.
 6. **Text** — a hook title in the first ~1.5 s and a word-by-word caption,
    with bboxes measured from the renderer's own text layout.
 
@@ -217,11 +219,11 @@ def _plan_transitions(rng: np.random.Generator, seed: int, g: _Grid, bounds: lis
             out[i] = (kind, *sp)
     forced = ("dissolve", "fade_black", "flash")[seed % 3]
     if all(k != forced for k, _, _ in out.values()):
-        options = [i for i in range(1, len(bounds) - 1) if i not in out and (forced == "flash" or bounds[i] < drop_t)]
-        for i in rng.permutation(options):
-            sp = span(forced, int(i))
+        options = [int(i) for i in rng.permutation(len(bounds) - 2) + 1 if forced == "flash" or bounds[i] < drop_t]
+        for i in sorted(options, key=lambda i: i in out):  # free boundaries first, else replace a special
+            sp = span(forced, i)
             if sp is not None:
-                out[int(i)] = (forced, *sp)
+                out[i] = (forced, *sp)
                 break
     return out
 
@@ -230,7 +232,7 @@ def _plan_transitions(rng: np.random.Generator, seed: int, g: _Grid, bounds: lis
 
 
 def _pick_effects(rng: np.random.Generator, g: _Grid, shots: list[Shot], moving: list[bool],
-                  drop_t: float, blocked: list[tuple[float, float]], bw_shot: int) -> None:
+                  drop_t: float, blocked: list[tuple[float, float]], bw_shot: int, want_freeze: bool) -> None:
     """Sample effects into ``shot.effects`` (spans frame-quantised, inside their shot)."""
     q, fps = g.q, g.fps
     pixel_spans: list[tuple[float, float]] = []
@@ -244,8 +246,13 @@ def _pick_effects(rng: np.random.Generator, g: _Grid, shots: list[Shot], moving:
         elif r < 0.75 and freeze_left:
             time_kind[i] = "freeze"
             freeze_left -= 1
-    if time_hosts and not time_kind:
-        time_kind[time_hosts[0]] = "speed"
+    if want_freeze and "freeze" not in time_kind.values():
+        spare = [i for i in time_hosts if i not in time_kind]
+        speeds = [i for i in time_hosts if time_kind.get(i) == "speed"]
+        if spare or len(speeds) > 1:  # keep at least one speed effect
+            time_kind[(spare or speeds)[-1]] = "freeze"
+    if time_hosts and "speed" not in time_kind.values():
+        time_kind[next((i for i in time_hosts if i not in time_kind), time_hosts[0])] = "speed"
 
     def pixel_slot(shot: Shot, length: float, anchor: Optional[float] = None) -> Optional[tuple[float, float]]:
         lo, hi = shot.start + 0.1, shot.end - 0.1 - length
@@ -289,7 +296,8 @@ def _pick_effects(rng: np.random.Generator, g: _Grid, shots: list[Shot], moving:
             effects.append(_shake(rng, g, shot))
         if L >= 0.6 and rng.random() < 0.15:
             k0 = math.floor((shot.start - g.beat0) / g.period)
-            inner = [g.t(k) for k in range(k0, k0 + int(L / g.period) + 2) if shot.start + 0.15 < g.t(k) < shot.end - 0.2]
+            beats = [g.t(k) for k in range(k0, k0 + int(L / g.period) + 2)]
+            inner = [t for t in beats if shot.start + 0.15 < t < shot.end - 0.2]
             slot = pixel_slot(shot, int(rng.choice([3, 4, 5])) / fps, float(rng.choice(inner)) if inner else None)
             if slot:
                 effects.append(Flash(start=slot[0], end=slot[1], intensity=round(float(rng.uniform(0.6, 1.0)), 2)))
@@ -530,23 +538,24 @@ def build_case(seed: int, size: tuple[int, int] = (360, 640), fps: float = 30.0,
     bw_options = [i for i in range(1, n) if shots[i].end <= drop_t + 1e-6] or list(range(1, n)) or [0]
     bw_shot = int(rng.choice(bw_options))
     shots[bw_shot].look = Look(bw=True)
-    _pick_effects(rng, g, shots, moving, drop_t, blocked, bw_shot)
+    _pick_effects(rng, g, shots, moving, drop_t, blocked, bw_shot, want_freeze=seed % 2 == 1)
     motion = _camera(rng, shots, moving, size, fps)
 
     # Timeline: hook | build | drop sections. Items are anchored at the start of the
     # shot they belong to (a transition belongs with its incoming shot).
     items: list[tuple[float, Union[Shot, Transition]]] = []
     if fade_in:
+        off0 = g.offset(0.0)
         items.append((0.0, Transition(kind="fade_black", start=0.0, end=fade_in_end, from_shot=None,
                                       to_shot=shot_id(0), color=(0, 0, 0),
-                                      on_beat=abs(g.offset(0.0)) <= BEAT_TOLERANCE, beat_offset=round(g.offset(0.0), 4))))
+                                      on_beat=abs(off0) <= BEAT_TOLERANCE, beat_offset=round(off0, 4))))
     for i, shot in enumerate(shots):
         if i > 0:
             kind, ts, te = trans.get(i, ("cut", shot.start, shot.start))
             color = {"flash": (255, 255, 255), "fade_black": (0, 0, 0)}.get(kind)
-            items.append((shot.start, Transition(kind=kind, start=ts, end=te, from_shot=shot_id(i - 1),  # type: ignore[arg-type]
-                                                 to_shot=shot_id(i), color=color, on_beat=shot.on_beat,
-                                                 beat_offset=shot.beat_offset)))
+            tr = Transition(kind=kind, start=ts, end=te, from_shot=shot_id(i - 1),  # type: ignore[arg-type]
+                            to_shot=shot_id(i), color=color, on_beat=shot.on_beat, beat_offset=shot.beat_offset)
+            items.append((shot.start, tr))
         items.append((shot.start, shot))
     if fade_out_len:
         items.append((shots[-1].start, Transition(kind="fade_black", start=total - fade_out_len, end=total,

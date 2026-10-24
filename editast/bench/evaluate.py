@@ -8,8 +8,11 @@ greedily, best pair first:
 * **transitions** — every shot boundary carries a kind (``cut`` unless a
   Transition says otherwise; fade-in / fade-out are boundaries at 0 and the
   end). Truth boundaries with a non-cut kind are matched to predicted
-  boundaries (tolerance widened to half the truth span) and the kind accuracy
-  is reported with a confusion table.
+  boundaries (tolerance widened to half the truth span); the kind accuracy
+  is computed over the matched ones (a missed boundary is already a cut
+  recall error), with a confusion table that also counts misses, the
+  fraction of special transitions detected as non-cut, and false positives
+  (predicted non-cut kinds on truth hard cuts or on no boundary).
 * **effects** — per effect type, a match needs the same type and a temporal
   IoU >= 0.2 or an overlap of >= 50 % of the shorter span. Parameter errors
   for matched pairs: zoom ratio relative error, pan direction agreement
@@ -171,7 +174,7 @@ def _compare_transitions(truth: Edit, pred: Edit, tol: float) -> dict[str, Any]:
 
     pairs = dict(_greedy(len(tb), len(pb), score))
     confusion: dict[str, dict[str, int]] = {}
-    n_special = correct = detected = 0
+    n_special = matched = correct = detected = 0
     for i, (_, kind, _) in enumerate(tb):
         if kind == "cut":
             continue
@@ -179,14 +182,17 @@ def _compare_transitions(truth: Edit, pred: Edit, tol: float) -> dict[str, Any]:
         got = pb[pairs[i]][1] if i in pairs else "missed"
         confusion.setdefault(kind, {})
         confusion[kind][got] = confusion[kind].get(got, 0) + 1
+        matched += i in pairs
         correct += got == kind
         detected += got not in ("cut", "missed")
-    matched_truth = {pairs[i] for i, (_, kind, _) in enumerate(tb) if kind != "cut" and i in pairs}
-    false_special = sum(1 for j, (_, kind, _) in enumerate(pb) if kind != "cut" and j not in matched_truth)
+    # A predicted special transition on a truth hard cut (or on no truth boundary) is a false positive.
+    special_pairs = {pairs[i] for i, (_, kind, _) in enumerate(tb) if kind != "cut" and i in pairs}
+    false_special = sum(1 for j, (_, kind, _) in enumerate(pb) if kind != "cut" and j not in special_pairs)
     return {
         "n_truth": n_special,
-        "accuracy": correct / n_special if n_special else None,
-        "detected": detected / n_special if n_special else None,
+        "matched": matched,
+        "accuracy": correct / matched if matched else None,  # kind accuracy on matched boundaries
+        "detected": detected / n_special if n_special else None,  # truth specials predicted as non-cut
         "false_positives": false_special,
         "confusion": confusion,
     }
@@ -220,11 +226,9 @@ def _param_errors(kind: str, pairs: list[tuple[EffectBase, EffectBase]]) -> dict
                  for t, p in pairs]
         return {"sign_agreement": float(np.mean(signs))}
     if kind == "shake":
-        return {
-            "frequency_error_hz": float(np.mean([abs(t.frequency - p.frequency) for t, p in pairs])),  # type: ignore[attr-defined]
-            "amplitude_rel_error": float(np.mean([abs(p.amplitude - t.amplitude) / max(t.amplitude, 1e-9)  # type: ignore[attr-defined]
-                                                  for t, p in pairs])),
-        }
+        freq = [abs(t.frequency - p.frequency) for t, p in pairs]  # type: ignore[attr-defined]
+        amp = [abs(p.amplitude - t.amplitude) / max(t.amplitude, 1e-9) for t, p in pairs]  # type: ignore[attr-defined]
+        return {"frequency_error_hz": float(np.mean(freq)), "amplitude_rel_error": float(np.mean(amp))}
     if kind == "speed":
         return {"slow_fast_agreement": float(np.mean([_speed_class(t) == _speed_class(p) for t, p in pairs]))}
     return {}
@@ -359,6 +363,7 @@ def compare(truth: Edit, pred: Edit) -> dict[str, Any]:
 
 
 def _fmt(v: Any, width: int = 6) -> str:
+    """Right-aligned table cell (``width=0``: unpadded)."""
     if v is None:
         return "-".rjust(width)
     if isinstance(v, bool):
@@ -373,33 +378,34 @@ def format_report(report: dict[str, Any]) -> str:
     rows: list[tuple[str, Any, Any, Any, str]] = []
     c = report["cuts"]
     rows.append(("cuts", c["precision"], c["recall"], c["f1"],
-                 f"{c['matched']}/{c['n_truth']} truth, {c['n_pred']} pred, mean offset {c['mean_offset'] * 1000:.0f} ms"))
+                 f"{c['matched']}/{c['n_truth']} truth, {c['n_pred']} pred,"
+                 f" mean offset {c['mean_offset'] * 1000:.0f} ms"))
     tr = report["transitions"]
     conf = "; ".join(f"{k}->" + ",".join(f"{pk}:{n}" for pk, n in v.items()) for k, v in tr["confusion"].items())
     rows.append(("transition kind", None, None, tr["accuracy"],
-                 f"n={tr['n_truth']} detected={_fmt(tr['detected']).strip()} fp={tr['false_positives']}"
-                 + (f"  [{conf}]" if conf else "")))
+                 f"{tr['matched']}/{tr['n_truth']} matched, detected {_fmt(tr['detected'], 0)},"
+                 f" fp {tr['false_positives']}" + (f"  [{conf}]" if conf else "")))
     ef = report["effects"]
     rows.append(("effects (all)", ef["precision"], ef["recall"], ef["f1"],
                  f"{ef['n_truth']} truth, {ef['n_pred']} pred, macro F1 {ef['f1_macro']:.3f}"))
     for kind, e in ef["by_type"].items():
         extras = [f"{e['matched']}/{e['n_truth']}"]
-        extras += [f"{k}={_fmt(v).strip()}" for k, v in e.items()
+        extras += [f"{k}={_fmt(v, 0)}" for k, v in e.items()
                    if k not in ("precision", "recall", "f1", "n_truth", "n_pred", "matched")]
         rows.append((f"  {kind}", e["precision"], e["recall"], e["f1"], " ".join(extras)))
     mu = report.get("music")
     if mu:
         pred_bpm = f"{mu['pred_bpm']:.1f}" if mu["pred_bpm"] else "-"
         truth_bpm = f"{mu['truth_bpm']:.1f}" if mu["truth_bpm"] else "-"
-        bpm = (f"bpm {pred_bpm} vs {truth_bpm}"
-               f" (err {_fmt(mu['bpm_rel_error']).strip()}, ok {_fmt(mu['bpm_ok']).strip()},"
-               f" octave ok {_fmt(mu['bpm_ok_octave']).strip()}) drop err {_fmt(mu['drop_error']).strip()} s")
+        bpm = (f"bpm {pred_bpm} vs {truth_bpm} (err {_fmt(mu['bpm_rel_error'], 0)}, ok {_fmt(mu['bpm_ok'], 0)},"
+               f" octave ok {_fmt(mu['bpm_ok_octave'], 0)}) drop err {_fmt(mu['drop_error'], 0)} s")
         rows.append(("beats", mu["beat_precision"], mu["beat_recall"], mu["beat_f"], bpm))
     tx = report["text"]
     rows.append(("text", tx["precision"], tx["recall"], tx["f1"],
-                 f"{tx['matched']}/{tx['n_truth']} bbox IoU {tx['bbox_iou']:.3f} OCR {_fmt(tx['ocr_similarity']).strip()}"))
+                 f"{tx['matched']}/{tx['n_truth']} bbox IoU {tx['bbox_iou']:.3f} OCR {_fmt(tx['ocr_similarity'], 0)}"))
     lk = report["look"]
-    rows.append(("look b&w", None, None, lk["bw_accuracy"], f"{lk['n_bw']} b&w shots, recall {_fmt(lk['bw_recall']).strip()}"))
+    rows.append(("look b&w", None, None, lk["bw_accuracy"],
+                 f"{lk['n_bw']} b&w shots, recall {_fmt(lk['bw_recall'], 0)}"))
     name_w = max(len(r[0]) for r in rows) + 2
     lines = [f"{'metric':<{name_w}}{'P':>7}{'R':>7}{'F1':>7}  details", "-" * (name_w + 21 + 30)]
     for name, p, r, f, extra in rows:

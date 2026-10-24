@@ -17,10 +17,12 @@ Per output frame ``f`` (shown at ``f / fps`` seconds):
 3. **Geometry** — Zoom (scale), Rotate (angle) and Pan (``tx, ty``) are eased
    over their span and hold their end value afterwards, Shake adds
    :func:`editast.fx.shake_offset` jitter inside its span; all of it is one
-   :func:`editast.fx.transform` call per frame.
-4. **Pixel effects** — blur, rgb_split, invert, then in-shot flash (sine
-   envelope peaking at ``intensity`` mid-span); then the shot look (B&W) and
-   layout bars (letterbox / pillarbox).
+   :func:`editast.fx.transform` call per frame. A constant per-shot cover
+   magnification keeps moves from exposing the frame border without
+   changing any observable (relative) zoom, pan or shake.
+4. **Pixel effects** — blur, rgb_split, invert, then in-shot flash (linear
+   rise and fall, exactly ``intensity`` on the middle frame of the span);
+   then the shot look (B&W) and layout bars (letterbox / pillarbox).
 5. **Transitions** — flash / fade_black / fade_white blend toward a colour
    with an envelope peaking on the boundary frame; dissolve and slide mix the
    outgoing and incoming shot, which are rendered with *handles* (extra
@@ -28,7 +30,8 @@ Per output frame ``f`` (shown at ``f / fps`` seconds):
    approximated with fast motion + blur around the boundary. Fade-in
    (``from_shot=None``) and fade-out (``to_shot=None``) dip from / to colour.
 6. **Text overlays** — :func:`editast.fx.draw_text` centred on the bbox
-   centre; ``word_by_word`` overlays show each Word in its own span.
+   centre; ``word_by_word`` overlays show each Word in its own span. Text is
+   a layer above the picture: transitions and fades do not affect it.
 
 Frame quantisation (shared with :mod:`editast.bench.generate`): a span
 ``[start, end)`` covers frames ``round(start*fps) .. round(end*fps) - 1``, at
@@ -39,8 +42,9 @@ frame of the span, so the observed end/start zoom ratio is exactly
 Effects with ``params["source"] == "camera"`` describe motion that is already
 in the footage (e.g. an analysed camera pan) and are not re-applied.
 
-Frames are streamed into :class:`editast.media.VideoWriter`; only the source
-footage of the shots currently on screen is held in memory.
+Frames are streamed into :class:`editast.media.VideoWriter`. Source footage
+is fetched lazily per shot (streamed from the decoder or sampled in chunks,
+see ``_Footage``), so memory does not grow with shot or video length.
 """
 
 from __future__ import annotations
@@ -76,7 +80,7 @@ from editast.ast.nodes import (
     assign_ids,
 )
 from editast.media import VideoWriter, fit_size
-from editast.render.sources import ClipSource, Size, SubframeSource, VideoClipSource
+from editast.render.sources import ClipSource, Size, StreamingSource, SubframeSource, VideoClipSource
 
 ProgressFn = Callable[[str], None]
 Sources = Union[ClipSource, str, Path, Sequence[Union[str, Path]]]
@@ -182,12 +186,14 @@ def text_box(text: str, center: tuple[float, float], line_height: float, size: S
 class _OverlayPlan:
     f0: int
     f1: int
-    segments: list[tuple[int, int, str]]  # (first frame, end frame, text shown)
+    segments: list[tuple[int, int, str]]  # (first frame, end frame, text shown; "\n" separates lines)
     center: tuple[float, float]
     cap: float
     color: tuple[int, int, int]
     outline: bool
     animation: str
+    n_lines: int = 1  # line slots of the layout, stacked around ``center``
+    pitch: float = 0.0  # distance between line centres, fraction of frame height
 
     def draw(self, frame: np.ndarray, f: int, fps: float) -> np.ndarray:
         for s0, s1, text in self.segments:
@@ -196,7 +202,11 @@ class _OverlayPlan:
             cap = self.cap
             if self.animation == "pop":  # quick scale-up over the first 0.15 s
                 cap *= 0.75 + 0.25 * min(1.0, (f - self.f0 + 1) / max(1.0, 0.15 * fps))
-            drawn, _ = fx.draw_text(frame, text, self.center, cap, self.color, self.outline)
+            drawn = frame
+            for k, line in enumerate(text.split("\n")):
+                cy = self.center[1] + (k - (self.n_lines - 1) / 2.0) * self.pitch
+                if line:
+                    drawn, _ = fx.draw_text(drawn, line, (self.center[0], cy), cap, self.color, self.outline)
             if self.animation == "fade":
                 ramp = max(1.0, 0.2 * fps)
                 alpha = min(1.0, (f - self.f0 + 1) / ramp, (self.f1 - f) / ramp)
@@ -205,34 +215,82 @@ class _OverlayPlan:
         return frame
 
 
+def _wrap(words: list[str], n_lines: int) -> list[list[str]]:
+    """Split ``words`` into at most ``n_lines`` lines, minimising the longest line (in characters)."""
+    n, m = min(n_lines, len(words)), len(words)
+    if n <= 1:
+        return [words]
+    ends = np.concatenate([[0], np.cumsum([len(w) + 1 for w in words])])  # ends[j] - ends[i] - 1 = width
+
+    # best[k][j]: smallest possible longest line when the first j words fill k lines.
+    best = np.full((n + 1, m + 1), np.inf)
+    cut = np.zeros((n + 1, m + 1), int)
+    best[0, 0] = 0.0
+    for k in range(1, n + 1):
+        for j in range(k, m + 1):
+            i = np.arange(k - 1, j)
+            cost = np.maximum(best[k - 1, i], ends[j] - ends[i] - 1)
+            cut[k, j] = i[int(np.argmin(cost))]
+            best[k, j] = cost.min()
+    lines, j = [], m
+    for k in range(n, 0, -1):
+        i = int(cut[k, j])
+        lines.append(words[i:j])
+        j = i
+    return lines[::-1]
+
+
+def _layout(lines: list[list[str]], n_words: Optional[int] = None) -> str:
+    """The first ``n_words`` words of a wrapped text, keeping their line breaks."""
+    out, left = [], sum(len(line) for line in lines) if n_words is None else n_words
+    for line in lines:
+        out.append(" ".join(line[:max(0, left)]))
+        left -= len(line)
+    return "\n".join(out).rstrip("\n")
+
+
 def _plan_overlay(ov: TextOverlay, fps: float) -> Optional[_OverlayPlan]:
+    """Frame segments and layout of one overlay.
+
+    A bbox several ``size`` lines tall (a caption block, as the text analyzer
+    reports it) is laid out as that many balanced lines at a fixed pitch.
+    """
     f0, f1 = frame_span(ov.start, ov.end, fps)
-    text = (ov.text or "").strip()
+    x, y, bw, bh = ov.bbox
+    has_box = bw > 0 and bh > 0
+    line_h = ov.size if ov.size > 0 else (bh if has_box else DEFAULT_LINE_HEIGHT)
+    n_lines = max(1, int(round(bh / line_h))) if has_box and ov.size > 0 else 1
+    text = " ".join((ov.text or "").split())
     words = sorted((w for w in ov.words if w.text.strip()), key=lambda w: w.start)
+    tokens = [w.text.strip() for w in words] if words else text.split()
+    lines = _wrap(tokens, n_lines)
     segments: list[tuple[int, int, str]] = []
-    if words and ov.animation == "word_by_word":
+    if words and ov.animation == "word_by_word":  # one word at a time, centred in the box
         for w in words:
             a, b = frame_span(w.start, w.end, fps)
             segments.append((max(a, f0), min(b, f1), w.text.strip()))
+        lines = [tokens]
     elif words and ov.animation == "typewriter":
         for i, w in enumerate(words):
             a = frame_span(w.start, w.end, fps)[0]
             b = int(round(words[i + 1].start * fps)) if i + 1 < len(words) else f1
-            segments.append((max(a, f0), min(b, f1), " ".join(x.text.strip() for x in words[: i + 1])))
+            segments.append((max(a, f0), min(b, f1), _layout(lines, i + 1)))
     elif text and ov.animation == "typewriter":
+        full = _layout(lines)
         reveal = max(1, int(0.6 * (f1 - f0)))
-        cuts = [f0 + reveal * i // len(text) for i in range(len(text))] + [f1]
-        segments = [(cuts[i], cuts[i + 1], text[: i + 1]) for i in range(len(text)) if cuts[i + 1] > cuts[i]]
-    elif text or words:
-        segments.append((f0, f1, text or " ".join(w.text.strip() for w in words)))
+        cuts = [f0 + reveal * i // len(full) for i in range(len(full))] + [f1]
+        segments = [(cuts[i], cuts[i + 1], full[: i + 1]) for i in range(len(full)) if cuts[i + 1] > cuts[i]]
+    elif tokens:
+        segments.append((f0, f1, _layout(lines)))
     if not segments:
         return None
-    x, y, bw, bh = ov.bbox
-    center = (x + bw / 2.0, y + bh / 2.0) if bw > 0 and bh > 0 else (0.5, _POSITION_Y.get(ov.position, 0.5))
-    line = ov.size if ov.size > 0 else (bh if bh > 0 else DEFAULT_LINE_HEIGHT)
+    n_lines = len(lines)
+    center = (x + bw / 2.0, y + bh / 2.0) if has_box else (0.5, _POSITION_Y.get(ov.position, 0.5))
+    pitch = bh / n_lines if has_box else line_h
     color = tuple(int(c) for c in ov.color) if ov.color is not None else WHITE
     outline = True if ov.outline is None else bool(ov.outline)
-    return _OverlayPlan(f0, f1, segments, center, line / _line_ratio(), color, outline, ov.animation)
+    return _OverlayPlan(f0, f1, segments, center, line_h / _line_ratio(), color, outline, ov.animation,
+                        n_lines, pitch)
 
 
 # --------------------------------------------------------------------------- shots
@@ -254,7 +312,8 @@ def shot_geometry(shot: Shot, fps: float, frames: np.ndarray, size: Size) -> Geo
 
     Zoom scales multiply, angles and translations add. Zoom, Rotate and Pan
     hold their start value before and their end value after their span;
-    Shake only acts inside its span.
+    Shake only acts inside its span. A constant cover scale keeps the frame
+    filled (see :func:`_cover`); pass all frames the shot will render.
     """
     w, h = size
     frames = np.asarray(frames)
@@ -285,9 +344,128 @@ def shot_geometry(shot: Shot, fps: float, frames: np.ndarray, size: Size) -> Geo
                 geo.ty[i] += dy * w / h  # amplitude is a fraction of the width on both axes
                 if eff.rotation_amplitude:
                     geo.angle[i] += eff.rotation_amplitude * math.sin(2 * math.pi * 0.9 * eff.frequency * t + phase)
+    _cover(geo, size)
     return geo
 
 
+def _cover(geo: Geometry, size: Size) -> None:
+    """Magnify the whole shot just enough that no frame shows the picture's border.
+
+    Pans, rotations, shake and zoom-outs would otherwise expose mirrored
+    edges. The extra scale ``k`` is constant over the shot (so it is not an
+    observable zoom) and is folded into the same similarity transform as a
+    pre-scale about the frame centre: for ``q = s R (p - c) + c + t`` that is
+    scale ``s k`` and translation ``t + s (k - 1) R (c - c0)``. Translations
+    keep their on-screen size, so observed pan and shake are unchanged.
+    """
+    w, h = size
+    s, theta = geo.scale, np.radians(geo.angle)
+    cos, sin = np.cos(theta), np.sin(theta)
+    cx, cy = geo.center[0] * w, geo.center[1] * h
+    # Forward map q = A p + b (cv2.getRotationMatrix2D layout); A^-1 = [[a, -b], [b, a]] / s^2.
+    a, b = s * cos, s * sin
+    bx = (1.0 - a) * cx - b * cy + geo.tx * w
+    by = b * cx + (1.0 - a) * cy + geo.ty * h
+    need = np.ones_like(s)
+    for qx, qy in ((0.0, 0.0), (w, 0.0), (0.0, h), (w, h)):  # output corners, mapped back to the source
+        ux, uy = qx - bx, qy - by
+        px, py = (a * ux - b * uy) / s ** 2, (b * ux + a * uy) / s ** 2
+        need = np.maximum(need, np.maximum(np.abs(px - w / 2) / (w / 2), np.abs(py - h / 2) / (h / 2)))
+    k = float(need.max()) if need.size else 1.0
+    if k <= 1.0 + 1e-6:
+        return
+    dx, dy = cx - w / 2, cy - h / 2
+    geo.tx = geo.tx + s * (k - 1.0) * (cos * dx + sin * dy) / w
+    geo.ty = geo.ty + s * (k - 1.0) * (-sin * dx + cos * dy) / h
+    geo.scale = s * k
+
+
+class _Footage:
+    """Source pictures of one shot, fetched lazily as its output frames advance.
+
+    ``positions[i]`` is the (fractional) source position of the shot's i-th
+    rendered frame; frames are requested in non-decreasing order. A
+    :class:`SubframeSource` is sampled exactly, chunk by chunk; a
+    :class:`StreamingSource` is read through a sliding window of decoded
+    frames; any other source delivers the whole shot at once. Fractional
+    positions of frame-based sources are frame-blended (slow motion).
+    """
+
+    CHUNK_BYTES = 48_000_000  # memory budget of one SubframeSource chunk
+
+    def __init__(self, shot: Shot, positions: np.ndarray, source: ClipSource, size: Size) -> None:
+        self.shot, self.positions, self.source, self.size = shot, positions, source, size
+        w, h = size
+        self._shape = (h, w, 3)
+        self._chunk_len = int(np.clip(self.CHUNK_BYTES // (w * h * 3), 4, 64))
+        self._chunk: Optional[np.ndarray] = None
+        self._c0 = 0
+        self._buf: list[np.ndarray] = []  # _buf[k] is source frame _base + k
+        self._base = 0
+        self._iter: Optional[Iterator[np.ndarray]] = None
+        n_src = int(math.ceil(positions[-1] - 1e-6)) + 1 if positions.size else 0
+        if isinstance(source, SubframeSource):
+            self._subframe = True
+        else:
+            self._subframe = False
+            if isinstance(source, StreamingSource):
+                self._iter = iter(source.iter_shot(shot, n_src, size))
+            else:
+                frames = source.frames_for_shot(shot, n_src, size)
+                self._check(frames, n_src)
+                self._buf = list(frames)
+            if not self._fill(0):
+                raise ValueError(f"source returned no frames for shot {shot.index}")
+
+    def _check(self, frames: np.ndarray, n: int) -> None:
+        if frames.ndim != 4 or frames.shape[1:] != self._shape or frames.shape[0] < min(n, 1):
+            raise ValueError(f"source returned frames of shape {frames.shape}, expected (n, *{self._shape})")
+
+    def _fill(self, k: int) -> bool:
+        """Read the stream up to source frame ``k``; False if nothing is available at all."""
+        while self._iter is not None and self._base + len(self._buf) <= k:
+            frame = next(self._iter, None)
+            if frame is None:
+                self._iter = None
+                break
+            if frame.shape != self._shape:
+                raise ValueError(f"source returned a frame of shape {frame.shape}, expected {self._shape}")
+            self._buf.append(frame)
+        return bool(self._buf)
+
+    def _frame(self, k: int) -> np.ndarray:
+        self._fill(k)
+        k = int(np.clip(k - self._base, 0, len(self._buf) - 1))  # a short source holds its last frame
+        return self._buf[k]
+
+    def at(self, i: int) -> np.ndarray:
+        """Picture for the shot's ``i``-th rendered frame."""
+        if self._subframe:
+            if self._chunk is None or not (self._c0 <= i < self._c0 + self._chunk.shape[0]):
+                self._c0 = i
+                positions = self.positions[i:i + self._chunk_len]
+                chunk = self.source.sample_shot(self.shot, positions, self.size)  # type: ignore[attr-defined]
+                self._check(chunk, 1)
+                self._chunk = chunk
+            return self._chunk[i - self._c0]
+        pos = float(self.positions[i])
+        k0 = int(math.floor(pos + 1e-6))
+        if self._iter is not None and k0 > self._base:  # positions never go back: drop older frames
+            drop = min(k0 - self._base, len(self._buf) - 1)
+            del self._buf[:drop]
+            self._base += drop
+        a = self._frame(k0)
+        frac = pos - k0
+        if frac < 1e-3:
+            return a
+        b = self._frame(k0 + 1)
+        return a if b is a else fx.blend(a, b, frac)
+
+    def close(self) -> None:
+        close = getattr(self._iter, "close", None)
+        if close is not None:
+            close()  # stops a decoder that was not read to the end
+        self._iter, self._buf, self._chunk = None, [], None
 
 
 class _ShotRenderer:
@@ -303,17 +481,7 @@ class _ShotRenderer:
         tail = (pos[-1] + 1.0 if pos.size else 0.0) + np.arange(post, dtype=float)
         positions = np.concatenate([np.arange(-pre, 0, dtype=float), pos, tail])
         positions -= positions[0]  # non-decreasing, so the first position is the in-point
-        self._positions = positions
-        if isinstance(source, SubframeSource):
-            self._frames = source.sample_shot(shot, positions, size)
-            self._direct = True
-        else:
-            n_src = int(math.ceil(positions[-1] - 1e-6)) + 1
-            self._frames = source.frames_for_shot(shot, n_src, size)
-            self._direct = False
-        w, h = size
-        if self._frames.shape[1:] != (h, w, 3):
-            raise ValueError(f"source returned frames of shape {self._frames.shape[1:]}, expected {(h, w, 3)}")
+        self._footage = _Footage(shot, positions, source, size)
         self._plan_effects(fps)
 
     def _plan_effects(self, fps: float) -> None:
@@ -324,20 +492,13 @@ class _ShotRenderer:
                 self.pixel.append((*frame_span(eff.start, eff.end, fps), eff))
         self.pixel.sort(key=lambda item: _PIXEL_ORDER[item[2].type])
 
-    def _source_frame(self, i: int) -> np.ndarray:
-        if self._direct:
-            return self._frames[i]
-        pos = self._positions[i]
-        i0 = min(int(math.floor(pos + 1e-6)), self._frames.shape[0] - 1)
-        frac = pos - i0
-        if frac < 1e-3 or i0 + 1 >= self._frames.shape[0]:
-            return self._frames[i0]
-        return fx.blend(self._frames[i0], self._frames[i0 + 1], frac)  # frame-blended slow motion
+    def close(self) -> None:
+        self._footage.close()
 
     def frame(self, f: int) -> np.ndarray:
         i = int(np.clip(f - self.first, 0, self.last - self.first - 1))
         g = self.geometry
-        img = fx.transform(self._source_frame(i), float(g.scale[i]), float(g.angle[i]),
+        img = fx.transform(self._footage.at(i), float(g.scale[i]), float(g.angle[i]),
                            float(g.tx[i]), float(g.ty[i]), g.center)
         for es, ee, eff in self.pixel:
             if not (es <= f < ee):
@@ -348,8 +509,8 @@ class _ShotRenderer:
                 img = fx.rgb_split(img, eff.offset)
             elif isinstance(eff, Invert):
                 img = fx.invert(img)
-            elif isinstance(eff, Flash):
-                env = math.sin(math.pi * (f - es + 0.5) / (ee - es))
+            elif isinstance(eff, Flash):  # peaks at exactly ``intensity`` on the middle frame
+                env = _peak(f, es, es + (ee - es - 1) // 2, ee)
                 img = fx.flash(img, eff.intensity * env, tuple(int(c) for c in eff.color))
         look, layout = self.shot.look, self.shot.layout
         if look is not None and look.bw:
@@ -492,8 +653,10 @@ def _compose(plan: _TransitionPlan, f: int, get: Callable[[int], _ShotRenderer],
         return _motion_blur(moved, int(e * 0.15 * (w if horizontal else h)), horizontal)
     if kind == "zoom":
         return fx.blur(fx.transform(img, scale=1.0 + e * e), 0.012 * e)
-    if kind == "spin":
-        return fx.blur(fx.transform(img, angle=(120.0 if before else -120.0) * e * e), 0.01 * e)
+    if kind == "spin":  # rotate out and back in, magnified so the corners stay filled
+        geo = Geometry(np.ones(1), np.array([(120.0 if before else -120.0) * e * e]), np.zeros(1), np.zeros(1))
+        _cover(geo, (w, h))
+        return fx.blur(fx.transform(img, float(geo.scale[0]), float(geo.angle[0])), 0.01 * e)
     if kind == "glitch":
         out = fx.rgb_split(img, 0.03 * e)
         rng = np.random.default_rng(f)
@@ -565,20 +728,27 @@ def render_frames(
                                               source, size, fps)
         return live[i]
 
-    for f in range(n):
-        for i in range(created + 1, len(tl.shots)):  # shots whose handles start here (dissolve)
-            if first_needed[i] <= f:
-                get(i)
+    try:
+        for f in range(n):
+            for i in range(created + 1, len(tl.shots)):  # shots whose handles start here (dissolve)
+                if first_needed[i] <= f:
+                    get(i)
+                else:
+                    break
+            t_idx = int(active[f])
+            if t_idx >= 0:
+                frame = _compose(tl.transitions[t_idx], f, get, int(owner[f]))
             else:
-                break
-        t_idx = int(active[f])
-        frame = _compose(tl.transitions[t_idx], f, get, int(owner[f])) if t_idx >= 0 else get(int(owner[f])).frame(f)
-        for ov in tl.overlays:
-            if ov.f0 <= f < ov.f1:
-                frame = ov.draw(frame, f, fps)
-        yield frame
-        for i in [i for i in live if last_needed[i] <= f + 1]:  # free footage no longer on screen
-            del live[i]
+                frame = get(int(owner[f])).frame(f)
+            for ov in tl.overlays:
+                if ov.f0 <= f < ov.f1:
+                    frame = ov.draw(frame, f, fps)
+            yield frame
+            for i in [i for i in live if last_needed[i] <= f + 1]:  # free footage no longer on screen
+                live.pop(i).close()
+    finally:
+        for renderer in live.values():
+            renderer.close()
 
 
 def render_edit(

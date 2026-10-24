@@ -9,11 +9,13 @@ transition frames and frames altered by detected effects) are measured:
   Laplacian variance ``v`` with a resolution-aware constant ``K``, vignette (the
   :func:`editast.fx.vignette` strength that explains the corner darkening
   relative to both the centre and the edge midpoints of the temporal-mean luma,
-  so a dark floor or a bright sky alone does not read as vignette) and the
-  dominant colour (peak of a smoothed coarse RGB histogram).
+  reported only when all four corners agree, so a dark floor or a bright sky
+  alone does not read as vignette) and the dominant colour (peak of a smoothed
+  coarse RGB histogram).
 * **Layout**: letterbox / pillarbox bars are runs of edge lines that match the
-  outermost line's colour (median over the line, so captions on the bar are
-  tolerated) and stay constant over the shot. A blur pad is a sharp content
+  outermost line's colour on most of their pixels (so captions on the bar are
+  tolerated), are flat (robust spread at noise level, which a blurred
+  background never reaches) and stay constant over the shot. A blur pad is a sharp content
   band between two soft (low Laplacian energy) but non-flat bands that
   correlate with a blurred, cover-scaled copy of the content. A split screen is
   a perfectly straight seam near the middle of the content that persists in
@@ -25,22 +27,26 @@ and fade transitions are not reported twice):
 * **Flash**: blending a frame toward a colour ``c`` by ``a`` scales its contrast
   by ``1-a`` (independent of ``c``), so ``a = 1 - std / baseline_std`` against a
   rolling median baseline that excludes candidate frames; the colour follows
-  from ``rgb = (1-a) * baseline_rgb + a * c``. A spike must move luma toward a
-  colour clearly different from the scene and last at most ``flash_max_duration``.
+  from ``rgb = (1-a) * baseline_rgb + a * c``. A spike must move the mean colour
+  clearly away from the scene (``flash_color_shift`` per unit of ``a``, RMS over
+  the channels, so a saturated colour flash at the scene's luma counts) and
+  last at most ``flash_max_duration``.
 * **Blur**: Laplacian variance below ``blur_threshold`` of the shot median for
   at least two frames. The Gaussian sigma is fitted from the radially averaged
   power-spectrum ratio to nearby sharp frames (``log ratio = -4 pi^2 sigma^2
   f^2``, exactly the transfer function of :func:`editast.fx.blur`, insensitive
   to camera motion). Directional (motion) blur is rejected by comparing the
-  horizontal and vertical fits.
+  horizontal and vertical fits, and a collapse of global contrast (a flash or
+  fade also removes detail) by comparing the luma std with the reference frames.
 * **Invert**: consecutive frames whose coarse thumbnails are strongly
   anti-correlated and whose mean colours sum to ~1 flip a polarity flag; shots
   separated by such a flip share a polarity domain (an inversion often fools
   the cut detector) and the minority polarity of each domain is inverted.
-* **RGBSplit**: horizontal phase correlation between the R and B channels;
-  :func:`editast.fx.rgb_split` moves R by ``+offset*width`` and B by
-  ``-offset*width``, so ``offset = shift / (2 * width)``. Spans are frames
-  clearly above the shot baseline (or a whole shot with a constant split).
+* **RGBSplit**: low-pass weighted horizontal phase correlation between the R
+  and B gradient magnitudes; :func:`editast.fx.rgb_split` moves R by
+  ``+offset*width`` and B by ``-offset*width``, so ``offset = shift / (2 *
+  width)``. Spans are frames whose shift is clearly above the estimation noise
+  (or a whole shot with a constant split).
 
 Flash / blur / RGB-split keyframes hold the per-frame intensity, sigma (as a
 fraction of width) or offset; ``easing`` describes the envelope shape after the
@@ -49,7 +55,7 @@ peak (``1 - ease(x)`` decay, or ``ease(x)`` rise when the peak is at the end).
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 import cv2
 import numpy as np
@@ -58,7 +64,7 @@ from scipy import ndimage
 from editast import fx
 from editast.analyzers.types import EffectsResult, LookAnalysis, ShotSegmentation, ShotSpan
 from editast.ast.nodes import Blur, EffectBase, Flash, Invert, Keyframe, Layout, Look, RGBSplit
-from editast.context import AnalysisContext
+from editast.context import AnalysisContext, FrameFeatures
 
 NAME = "look"
 _EASINGS = ("linear", "ease_in", "ease_out", "ease_in_out")
@@ -85,9 +91,10 @@ class _Params:
 def analyze_look(ctx: AnalysisContext, seg: ShotSegmentation) -> LookAnalysis:
     """Per-shot ``Look`` and ``Layout`` plus in-shot Flash / Blur / Invert / RGBSplit effects.
 
-    Signals: ``luma``, ``saturation``, ``sharpness_rel`` (half-resolution
-    Laplacian variance / shot median), ``rgb_shift`` (R-vs-B offset as a fraction of width, in
-    :func:`editast.fx.rgb_split` units) and ``flash_amount``.
+    Signals: ``luma``, ``saturation``, ``sharpness_rel`` (downscaled
+    Laplacian variance / shot median), ``rgb_shift`` (R-vs-B offset as a
+    fraction of width, in :func:`editast.fx.rgb_split` units) and
+    ``flash_amount`` (estimated blend toward a flash colour).
     """
     prm = _Params(ctx)
     n = ctx.n_frames
@@ -106,7 +113,7 @@ def analyze_look(ctx: AnalysisContext, seg: ShotSegmentation) -> LookAnalysis:
     trans = np.zeros(n, bool)
     tm = np.asarray(seg.transition_frames(), bool)[:n]
     trans[:tm.size] = tm
-    shift, response = _rgb_shift(ctx.frames)
+    shift, response = _rgb_shift(ctx.frames, float(prm("rgb_max_offset", 0.05)), float(prm("rgb_lowpass", 0.12)))
     rgb_shift = shift / (2.0 * w)
     thumbs, texture = _thumbnails(ctx.gray)
     inverted, flips = _inverted_frames(ctx, shots, trans, thumbs, texture, prm)
@@ -146,7 +153,9 @@ def analyze_look(ctx: AnalysisContext, seg: ShotSegmentation) -> LookAnalysis:
     return analysis
 
 
-def _signals(feats: Any, sharp_rel: np.ndarray, rgb_shift: np.ndarray, flash_amount: np.ndarray) -> dict[str, np.ndarray]:
+def _signals(
+    feats: FrameFeatures, sharp_rel: np.ndarray, rgb_shift: np.ndarray, flash_amount: np.ndarray
+) -> dict[str, np.ndarray]:
     return {
         "luma": np.asarray(feats.luma_mean, float),
         "saturation": np.asarray(feats.sat_mean, float),
@@ -183,10 +192,13 @@ def _baseline(values: np.ndarray, exclude: np.ndarray, size: int) -> np.ndarray:
 
 
 def _envelope(values: np.ndarray) -> str:
-    """Easing that best describes a peaked envelope (decay after the peak, or the rise)."""
+    """Easing that best describes a peaked envelope (decay after the peak, or the rise).
+
+    A flat envelope (a constant effect switched on and off) is ``"linear"``.
+    """
     v = np.asarray(values, float)
     peak = int(np.argmax(v))
-    if v[peak] <= 0:
+    if v[peak] <= 0 or v.min() >= 0.8 * v[peak]:
         return "linear"
     if peak == v.size - 1 and v.size >= 3:
         part, rising = v / v[peak], True
@@ -217,12 +229,11 @@ def _detect_flashes(
     if m < 3 or usable.sum() < 3:
         return [], amount, mask
     std = np.asarray(f.luma_std[sl], float)
-    lum = np.asarray(f.luma_mean[sl], float)
     rgb = np.asarray(f.rgb_mean[sl], float)
     size = prm.frames("flash_baseline", 0.8, minimum=9) | 1
     a_min = float(prm("flash_min_intensity", 0.25))
     a_edge = float(prm("flash_edge", 0.08))
-    lum_rel = float(prm("flash_luma_shift", 0.15))
+    shift_min = float(prm("flash_color_shift", 0.15))
     max_len = prm.frames("flash_max_duration", 0.4, minimum=2)
 
     # Pass 1 finds candidates, pass 2 re-estimates the baseline without them.
@@ -230,24 +241,24 @@ def _detect_flashes(
     cand = usable & (1.0 - std / np.maximum(base, 1e-3) > 0.6 * a_min)
     exclude = ~usable | ndimage.binary_dilation(cand, iterations=1)
     base_std = np.maximum(_baseline(std, exclude, size), 1e-3)
-    base_lum = _baseline(lum, exclude, size)
     base_rgb = np.stack([_baseline(rgb[:, c], exclude, size) for c in range(3)], axis=1)
     a = np.clip(1.0 - std / base_std, 0.0, 1.0)
-    shift = lum - base_lum
+    delta = rgb - base_rgb  # colour shift away from the scene
+    dist = np.linalg.norm(delta, axis=1) / np.sqrt(3.0)
     a[~usable] = 0.0
     amount[:] = a
 
     flashes: list[Flash] = []
-    hot = (a >= a_min) & (np.abs(shift) >= lum_rel * a)
+    hot = (a >= a_min) & (dist >= shift_min * a)
     for r0, r1 in _runs(hot):
         peak = r0 + int(np.argmax(a[r0:r1]))
         if mask[peak]:
             continue
-        sign = np.sign(shift[peak])
+        toward = delta[peak]  # neighbours belong to the flash while they shift the same way
         s0, s1 = peak, peak + 1
-        while s0 > 0 and a[s0 - 1] >= a_edge and np.sign(shift[s0 - 1]) == sign:
+        while s0 > 0 and a[s0 - 1] >= a_edge and float(delta[s0 - 1] @ toward) > 0:
             s0 -= 1
-        while s1 < m and a[s1] >= a_edge and np.sign(shift[s1]) == sign:
+        while s1 < m and a[s1] >= a_edge and float(delta[s1] @ toward) > 0:
             s1 += 1
         if s1 - s0 > max_len or s1 - s0 >= 0.8 * m:
             continue  # a lighting change, not a flash
@@ -264,7 +275,7 @@ def _detect_flashes(
             start=ctx.t(shot.f0 + s0), end=ctx.t(shot.f0 + s1),
             color=tuple(int(round(v * 255)) for v in c), intensity=round(float(a[peak]), 4),
             easing=_envelope(a[s0:s1]),
-            keyframes=[Keyframe(t=round(ctx.t(shot.f0 + i), 4), v=round(float(a[i]), 4)) for i in frames],
+            keyframes=[Keyframe(t=ctx.t(shot.f0 + i), v=round(float(a[i]), 4)) for i in frames],
             confidence=round(float(np.clip(0.5 + 0.5 * a[peak], 0.5, 0.95)), 3),
             params={"peak": round(ctx.t(shot.f0 + peak), 4)},
         ))
@@ -380,6 +391,7 @@ def _detect_blurs(
     min_len = int(prm("blur_min_frames", 2))
     w = half.shape[2]  # sigmas are measured in downscaled pixels
     thr = float(prm("blur_threshold", 0.38))
+    contrast = np.asarray(ctx.features.luma_std, float)
     blurs: list[Blur] = []
     for s0, s1 in _runs(soft):
         if (core[s0:s1]).sum() < min_len or s1 - s0 >= 0.8 * m:
@@ -389,6 +401,9 @@ def _detect_blurs(
         if not refs:
             continue
         peak = s0 + int(np.argmin(rel[s0:s1]))
+        ref_std = float(np.median(contrast[shot.f0 + np.array(refs)]))
+        if contrast[shot.f0 + peak] < float(prm("blur_contrast", 0.6)) * ref_std:
+            continue  # global contrast collapsed: a flash or fade, not a blur
         ref_blocks = blocks[shot.f0 + np.array(refs)].mean(axis=0)
         textured = ref_blocks > 0.1 * max(float(np.median(ref_blocks)), 1e-6)
         softened = blocks[shot.f0 + peak] < float(prm("blur_block_ratio", 0.6)) * ref_blocks
@@ -418,7 +433,7 @@ def _detect_blurs(
         blurs.append(Blur(
             start=ctx.t(shot.f0 + s0), end=ctx.t(shot.f0 + s1),
             amount=round(float(amounts.max()), 5), easing=_envelope(amounts),
-            keyframes=[Keyframe(t=round(ctx.t(shot.f0 + i), 4), v=round(float(v), 5))
+            keyframes=[Keyframe(t=ctx.t(shot.f0 + i), v=round(float(v), 5))
                        for i, v in zip(range(s0, s1), amounts)],
             confidence=round(float(np.clip(0.45 + 0.4 * depth, 0.45, 0.85)), 3),
             params={"peak": round(ctx.t(shot.f0 + peak), 4)},
@@ -492,30 +507,60 @@ def _invert_effects(ctx: AnalysisContext, shot: ShotSpan, inverted: np.ndarray, 
     for s0, s1 in _runs(inverted[shot.f0:shot.f1]):
         a, b = shot.f0 + s0, shot.f0 + s1
         bounded = bool(flips[a]) + bool(b < len(flips) and flips[b])
-        out.append(Invert(start=ctx.t(a), end=ctx.t(b), confidence=0.6 + 0.15 * bounded))
+        out.append(Invert(start=ctx.t(a), end=ctx.t(b), confidence=round(0.6 + 0.15 * bounded, 3)))
     return out
 
 
 # --------------------------------------------------------------------------- RGB split
 
 
-def _rgb_shift(frames: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Horizontal shift (px) of the R channel relative to B, and the correlation peak.
+def _rgb_shift(frames: np.ndarray, max_offset: float, cutoff: float, chunk: int = 64) -> tuple[np.ndarray, np.ndarray]:
+    """Horizontal shift (px) of the R channel relative to B, and the correlation peak (0..1).
 
-    Phase correlation of the horizontal gradient *magnitudes*: edges sit at the
-    same place in every channel, while the channel intensities themselves may
-    be uncorrelated or even anti-correlated (e.g. a red-to-blue gradient).
+    1-D phase correlation along x of the horizontal gradient *magnitudes*
+    (edges sit at the same place in every channel, while the intensities may be
+    uncorrelated or even anti-correlated, e.g. a red-to-blue gradient). The
+    cross-power spectrum is summed over row bands before normalisation and
+    weighted by a Gaussian low-pass (``cutoff`` cycles/px): H.264 keeps chroma
+    only at low frequencies, so at high frequencies R and B both carry the
+    (unshifted) luma detail and plain phase correlation is biased toward zero.
+    Shifts up to ``2 * max_offset * width`` are searched (sub-pixel by a
+    parabola through the peak); the peak is normalised so that 1 means all
+    weighted phases agree.
     """
     n, h, w = frames.shape[:3]
     size = (w, max(16, h // 4))  # rows are averaged; horizontal resolution is kept
-    window = cv2.createHanningWindow(size, cv2.CV_32F)
+    window = np.hanning(w).astype(np.float32)
+    n_fft = 2 * w  # zero padding: no wrap-around
+    weight = np.exp(-0.5 * (np.fft.rfftfreq(n_fft) / cutoff) ** 2)
+    norm = float(np.fft.irfft(weight, n=n_fft)[0])
+    max_lag = int(np.ceil(2.0 * max_offset * w)) + 2
+    lags = np.r_[n_fft - max_lag:n_fft, 0:max_lag + 1]  # -max_lag .. max_lag
     shift = np.zeros(n)
     resp = np.zeros(n)
-    for i in range(n):
-        grads = [cv2.resize(np.abs(cv2.Sobel(frames[i][..., c], cv2.CV_32F, 1, 0, ksize=3)), size,
-                            interpolation=cv2.INTER_AREA) for c in (0, 2)]
-        (dx, _), r = cv2.phaseCorrelate(grads[1], grads[0], window)
-        shift[i], resp[i] = dx, r
+    for c0 in range(0, n, chunk):
+        part = frames[c0:c0 + chunk]
+        grads = np.stack([cv2.resize(np.abs(cv2.Sobel(f, cv2.CV_32F, 1, 0, ksize=3)), size,
+                                     interpolation=cv2.INTER_AREA) for f in part])  # (k, rows, w, 3)
+        grads = grads[..., [2, 0]].transpose(0, 3, 1, 2)  # (k, [B, R], rows, w)
+        grads -= grads.mean(axis=3, keepdims=True)
+        spec = np.fft.rfft(grads * window, n=n_fft, axis=3)
+        # B vs R cross-power summed over rows; float64 from here (complex64 division can overflow).
+        cross = (np.conj(spec[:, 0]) * spec[:, 1]).sum(axis=1).astype(np.complex128)
+        mag = np.abs(cross)
+        floor = 1e-9 * np.maximum(mag.max(axis=1, keepdims=True), 1e-30)
+        corr = np.fft.irfft(cross / np.maximum(mag, floor) * weight, n=n_fft, axis=1)[:, lags] / norm
+        k = np.argmax(corr, axis=1)
+        rows = np.arange(k.size)
+        inner = (k > 0) & (k < lags.size - 1)
+        left = corr[rows, np.clip(k - 1, 0, None)]
+        right = corr[rows, np.clip(k + 1, None, lags.size - 1)]
+        mid = corr[rows, k]
+        den = left - 2.0 * mid + right
+        frac = np.where(inner & (den < 0), 0.5 * (left - right) / np.where(den < 0, den, -1.0), 0.0)
+        flat = mag.max(axis=1) <= 1e-12
+        shift[c0:c0 + part.shape[0]] = np.where(flat, 0.0, k - max_lag + frac)
+        resp[c0:c0 + part.shape[0]] = np.where(flat, 0.0, mid)
     return shift, resp
 
 
@@ -541,7 +586,7 @@ def _detect_rgb_split(
     w = ctx.size[0]
     dx = shift[sl]
     max_px = 2.0 * float(prm("rgb_max_offset", 0.05)) * w  # larger "shifts" are failed correlations
-    good = (usable & (response[sl] >= float(prm("rgb_min_response", 0.05))) & (texture[sl] > 0.02)
+    good = (usable & (response[sl] >= float(prm("rgb_min_response", 0.5))) & (texture[sl] > 0.02)
             & (np.abs(dx) <= max_px))
     if good.sum() < 1:
         return [], mask
@@ -578,7 +623,7 @@ def _detect_rgb_split(
         out.append(RGBSplit(
             start=ctx.t(shot.f0 + s0), end=ctx.t(shot.f0 + s1), offset=round(level / (2 * w), 5),
             easing=_envelope(np.abs(offs)),
-            keyframes=[Keyframe(t=round(ctx.t(shot.f0 + i), 4), v=round(float(o), 5))
+            keyframes=[Keyframe(t=ctx.t(shot.f0 + i), v=round(float(o), 5))
                        for i, o in zip(range(s0, s1), offs)],
             confidence=round(float(np.clip(0.5 + 0.1 * abs(level) / thr, 0.5, 0.9)), 3),
         ))
@@ -589,16 +634,38 @@ def _detect_rgb_split(
 
 
 def _bar_lines(lines: np.ndarray, dev: np.ndarray, prm: _Params) -> int:
-    """Number of flat bar lines at the start of ``lines`` ``(L, M, 3)`` (edge first)."""
+    """Number of flat bar lines at the start of ``lines`` ``(L, M, 3)`` (edge first).
+
+    A bar line matches the outermost line's colour on most of its pixels
+    (sparse text drawn on the bar is tolerated) and is flat: the median
+    absolute deviation along the line stays at compression-noise level, which a
+    heavily blurred background (blur pad) does not reach. A band of up to
+    ``bar_caption_gap`` of non-flat lines (a full-width caption on the bar) is
+    crossed when at least three flat lines of the very same colour as the
+    edge (``bar_resume_tolerance``) follow it, which dark scene content next to
+    a black bar rarely matches; isolated noisy lines (up to two) are always
+    crossed.
+    """
     tol = float(prm("bar_tolerance", 14.0))
-    colour = np.median(lines[0].astype(np.float32), axis=0)
-    near = (np.abs(lines.astype(np.float32) - colour).max(axis=2) <= tol).mean(axis=1)
-    if near[0] < 0.9:
+    px = lines.astype(np.float32)
+    colour = np.median(px[0], axis=0)
+    near = (np.abs(px - colour).max(axis=2) <= tol).mean(axis=1)
+    line_colour = np.median(px, axis=1)
+    spread = np.median(np.abs(px - line_colour[:, None]).max(axis=2), axis=1)
+    max_spread = float(prm("bar_flatness", 2.5))
+    if near[0] < 0.9 or spread[0] > max_spread:
         return 0
-    flat = (near >= float(prm("bar_fraction", 0.6))) & (dev <= float(prm("bar_temporal_dev", 6.0)))
-    bad = np.concatenate((~flat, [True, True, True]))
-    run3 = bad[:-2] & bad[1:-1] & bad[2:]
-    return int(np.argmax(run3))
+    flat = ((near >= float(prm("bar_fraction", 0.6))) & (spread <= max_spread)
+            & (dev <= float(prm("bar_temporal_dev", 6.0))))
+    same = np.abs(line_colour - colour).max(axis=1) <= float(prm("bar_resume_tolerance", 4.0))
+    max_gap = int(round(float(prm("bar_caption_gap", 0.12)) * lines.shape[0]))
+    size = 0
+    for a, b in _runs(flat):
+        gap = a - size
+        if gap > 2 and (size == 0 or gap > max_gap or b - a < 3 or not same[a:b].all()):
+            break
+        size = b
+    return size
 
 
 def _soft_band(profile: np.ndarray, level: float, ratio: float) -> int:
@@ -630,7 +697,12 @@ def _layout(sample: np.ndarray, prm: _Params) -> Layout:
     if y1 - y0 < 8 or x1 - x0 < 8:
         return layout
 
-    lap = np.stack([np.abs(cv2.Laplacian(g, cv2.CV_32F)) for g in gray[:, y0:y1, x0:x1]])
+    # Detail at half resolution: 8-bit quantisation of a smooth blurred pad leaves
+    # Laplacian noise at full resolution that area averaging removes.
+    rh, rw = y1 - y0, x1 - x0
+    lap = np.stack([np.abs(cv2.Laplacian(cv2.resize(g, (max(4, rw // 2), max(4, rh // 2)),
+                                                    interpolation=cv2.INTER_AREA), cv2.CV_32F))
+                    for g in gray[:, y0:y1, x0:x1]])
     for axis in (0, 1):  # 0: bands above / below the content, 1: left / right
         profile = np.median(lap.mean(axis=2 - axis), axis=0)
         span = profile.size
@@ -642,7 +714,8 @@ def _layout(sample: np.ndarray, prm: _Params) -> Layout:
         b = _soft_band(profile[::-1], level, ratio)
         if min(a, b) < float(prm("pad_min", 0.04)) * span or span - a - b < 0.2 * span:
             continue
-        box = (a, span - b)
+        full = rh if axis == 0 else rw
+        box = (int(round(a * full / span)), full - int(round(b * full / span)))
         if _is_blur_pad(sample[:, y0:y1, x0:x1], box, axis, prm):
             if axis == 0:
                 y0, y1 = y0 + box[0], y0 + box[1]
@@ -736,23 +809,34 @@ def _look(sample: np.ndarray, layout: Layout, prm: _Params) -> Look:
 
 
 def _vignette(mean_luma: np.ndarray, prm: _Params) -> float:
-    """:func:`editast.fx.vignette` strength explaining the corner darkening (0 = none)."""
+    """:func:`editast.fx.vignette` strength explaining the corner darkening (0 = none).
+
+    Each corner patch gets the strength that explains its darkening relative
+    to both the centre and the edge midpoints; the result is their mean, but
+    only when every corner is darkened (at least ``vignette_agreement`` of the
+    mean): a vignette is radially symmetric, while dark scene content (a road,
+    a shadow) rarely covers all four corners.
+    """
     h, w = mean_luma.shape
     ch, cw = max(2, int(0.12 * h)), max(2, int(0.12 * w))
-    corners = np.mean([mean_luma[:ch, :cw].mean(), mean_luma[:ch, -cw:].mean(),
-                       mean_luma[-ch:, :cw].mean(), mean_luma[-ch:, -cw:].mean()])
+    corners = np.array([mean_luma[:ch, :cw].mean(), mean_luma[:ch, -cw:].mean(),
+                        mean_luma[-ch:, :cw].mean(), mean_luma[-ch:, -cw:].mean()])
     eh, ew = max(2, int(0.12 * h)), max(2, int(0.24 * w))
     vh, vw = max(2, int(0.24 * h)), max(2, int(0.12 * w))
-    edges = np.mean([mean_luma[:eh, (w - ew) // 2:(w + ew) // 2].mean(), mean_luma[-eh:, (w - ew) // 2:(w + ew) // 2].mean(),
-                     mean_luma[(h - vh) // 2:(h + vh) // 2, :vw].mean(), mean_luma[(h - vh) // 2:(h + vh) // 2, -vw:].mean()])
+    mx0, mx1, my0, my1 = (w - ew) // 2, (w + ew) // 2, (h - vh) // 2, (h + vh) // 2
+    edges = np.mean([mean_luma[:eh, mx0:mx1].mean(), mean_luma[-eh:, mx0:mx1].mean(),
+                     mean_luma[my0:my1, :vw].mean(), mean_luma[my0:my1, -vw:].mean()])
     centre = mean_luma[int(0.35 * h):int(0.65 * h) + 1, int(0.35 * w):int(0.65 * w) + 1].mean()
     if centre <= 1e-3 or edges <= 1e-3:
         return 0.0
     # fx.vignette darkens by 1 - s*r^2 with r^2 ~ 0.77 in the corner patches, ~0.39 at the edge midpoints.
     q_c, q_e = corners / centre, corners / edges
-    s_centre = (1.0 - q_c) / max(0.774 - 0.03 * q_c, 1e-3)
-    s_edge = (1.0 - q_e) / max(0.774 - 0.387 * q_e, 1e-3)
-    s = float(np.clip(min(s_centre, s_edge), 0.0, 1.0))
+    s_centre = (1.0 - q_c) / np.maximum(0.774 - 0.03 * q_c, 1e-3)
+    s_edge = (1.0 - q_e) / np.maximum(0.774 - 0.387 * q_e, 1e-3)
+    per_corner = np.clip(np.minimum(s_centre, s_edge), 0.0, 1.0)
+    s = float(per_corner.mean())
+    if per_corner.min() < float(prm("vignette_agreement", 0.25)) * s:
+        return 0.0
     return s if s >= float(prm("vignette_min", 0.08)) else 0.0
 
 

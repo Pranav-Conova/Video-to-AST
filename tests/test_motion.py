@@ -121,13 +121,33 @@ def test_ease_out_zoom():
     assert ma.summaries[0].zoom_ratio == pytest.approx(1.3, rel=0.03)
 
 
-def test_off_center_zoom_recovers_center_without_pan():
-    frames = render(60, lambda i: {"scale": fx.interp(1.0, 1.3, (i - 10) / 30), "center": (0.3, 0.65)}, seed=3)
-    ma = analyze(frames)
+@pytest.mark.parametrize("easing, center, noise", [
+    ("linear", (0.3, 0.65), 0.0),
+    ("ease_out", (0.7, 0.3), 4.0),
+    ("punch", (0.4, 0.4), 4.0),
+])
+def test_off_center_zoom_recovers_center_without_pan(easing, center, noise):
+    frames = render(60, lambda i: {"scale": fx.interp(1.0, 1.3, (i - 10) / 30, easing), "center": center}, seed=3)
+    ma = analyze(add_noise(frames, noise) if noise else frames)
     (zoom,) = effects(ma, "zoom")
-    assert zoom.center == pytest.approx((0.3, 0.65), abs=0.05)
-    assert zoom.easing == "linear"
+    assert zoom.center == pytest.approx(center, abs=0.05)
+    assert zoom.easing == easing
     assert not effects(ma, "pan")
+
+
+def test_camera_pan_next_to_zoom_keeps_zoom_centred():
+    # Camera pans (content translation magnified by the digital zoom on top), stops, and
+    # 0.17 s later a centred zoom starts: the pan must not leak into the zoom centre.
+    def params(i):
+        scale = fx.interp(1.0, 1.25, (i - 35) / 20)
+        return {"scale": scale, "tx": scale * fx.interp(0.0, 0.15, (i - 5) / 25)}
+
+    ma = analyze(add_noise(render(80, params, seed=5), 3.0))
+    (zoom,) = effects(ma, "zoom")
+    assert zoom.center == (0.5, 0.5)
+    assert zoom.scale_to == pytest.approx(1.25, rel=0.03)
+    (pan,) = effects(ma, "pan")
+    assert pan.dx == pytest.approx(0.15, rel=0.07) and pan.end <= zoom.start + 0.05
 
 
 def test_zoom_in_then_out_gives_two_relative_zooms():
@@ -247,6 +267,34 @@ def test_no_motion_across_cuts_and_transitions():
     for shot in seg.shots:  # effect spans lie within their shot
         for e in ma.effects.by_shot.get(shot.index, []):
             assert shot.f0 / FPS - 1e-9 <= e.start < e.end <= shot.f1 / FPS + 1e-9
+
+
+def test_zoom_survives_in_shot_flash_invert_and_blank_frames():
+    # A linear zoom with a strong flash, an inverted frame and a white frame inside it:
+    # flashes / inversions are measured on contrast-normalised (inverted) frames and the
+    # blank frame is bridged, so the cumulative zoom stays exact.
+    frames = render(60, lambda i: {"scale": fx.interp(1.0, 1.3, (i - 10) / 35)}, seed=16)
+    frames[20:23] = [fx.flash(f, 0.75) for f in frames[20:23]]
+    frames[28] = fx.invert(frames[28])
+    frames[36] = 255
+    ma = analyze(add_noise(frames, 2.0))
+    fm = ma.frame_motion
+    assert fm.valid[[20, 21, 23, 28, 29]].all()
+    assert not fm.valid[[36, 37]].any()  # bridged across the blank frame: used, but not "valid"
+    assert np.prod(fm.scale[1:]) == pytest.approx(1.3, rel=0.02)
+    (zoom,) = effects(ma, "zoom")
+    assert zoom.scale_to == pytest.approx(1.3, rel=0.02) and zoom.easing == "linear"
+    assert not effects(ma, "pan") and not effects(ma, "shake")
+
+
+def test_unstructured_frames_give_no_effects():
+    # Independent noise frames (nothing trackable): no invented motion, bounded runtime.
+    rng = np.random.default_rng(3)
+    frames = np.stack([cv2.GaussianBlur(f, (0, 0), 1.0) for f in rng.integers(0, 256, (90, H, W, 3), np.uint8)])
+    ma = analyze(frames)
+    assert ma.effects.by_shot.get(0, []) == []
+    assert ma.frame_motion.valid.mean() < 0.1
+    assert ma.summaries[0].camera in ("static", "complex")
 
 
 def test_degenerate_shots_and_blank_frames():
