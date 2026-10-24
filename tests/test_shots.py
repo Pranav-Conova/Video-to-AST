@@ -328,6 +328,22 @@ def test_in_shot_edits_have_no_cuts():
     assert len(seg.shots) == 1, boundaries(seg)
 
 
+def test_invert_flash_is_not_a_cut():
+    """A short photographic-negative flash inside a moving shot (an invert effect)."""
+    frames = scene(60, seed=15, velocity=(3.0, 0.0))
+    frames[25:29] = [fx.invert(f) for f in frames[25:29]]
+    seg = detect(frames)
+    check_contract(seg, len(frames))
+    assert len(seg.shots) == 1, boundaries(seg)
+
+
+def test_cut_into_an_inverted_shot_is_still_a_cut():
+    frames = np.concatenate([scene(30, seed=16), np.stack([fx.invert(f) for f in scene(30, seed=17)])])
+    seg = detect(frames)
+    check_contract(seg, len(frames))
+    assert boundaries(seg) == [30]
+
+
 def test_letterboxed_cuts():
     frames, truth = synth.cut_sequence([15, 6, 20, 4, 15], height=H, width=W, velocity=(5.0, 0.0))
     frames = np.stack([fx.letterbox(f, 0.12, 0.12) for f in frames])

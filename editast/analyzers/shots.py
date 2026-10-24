@@ -121,6 +121,7 @@ class ShotParams:
     hist_saturation: float = 0.3  # histogram distance counted as a full colour change
     content_min: float = 0.2  # min distance between the two sides of a cut ...
     content_ratio: float = 0.35  # ... and at least this share of the cut's own distance
+    invert_similarity: float = 0.5  # a negated frame this similar is a polarity flip, not a cut
     same_content_max: float = 0.35  # distance below which two frames show the same shot
     ramp_contrast_step: float = 0.04  # min relative contrast drop per ramp frame
     ramp_luma_tol: float = 0.4  # allowed deviation from the blend model (share of the step)
@@ -710,6 +711,11 @@ class _Detector:
         for t in cand.tolist():
             p1 = int(self.prev_c[t])
             if p1 < 0:
+                continue
+            # The similarity is bilinear in the z-normalised thumbnails, so a photographic
+            # negative of the previous frame scores ~ -1: an invert effect (reported by the
+            # look analyzer), not new content.
+            if -float(self.matcher.identity(np.array([p1]), np.array([t]))[0]) >= p.invert_similarity:
                 continue
             checks = []
             if self.next_c[t] < n:
