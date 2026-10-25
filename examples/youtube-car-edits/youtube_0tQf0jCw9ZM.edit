@@ -1,0 +1,471 @@
+# editast EditScript
+edit "https://www.youtube.com/shorts/0tQf0jCw9ZM" {
+  media 1920x1080 16:9 @60fps duration 21.20s analysis_fps 60 frames 1272 audio
+  music bpm 122.0108 offset 0.2554s conf 0.6973 {
+    beats [
+        0.2554, 0.7546, 1.2365, 1.7357, 2.2233, 2.7167, 3.2044, 3.692, 4.1854, 4.6788, 5.1664,
+        5.6599, 6.1533, 6.6409, 7.1343, 7.6452, 8.1154, 8.6088, 9.108, 9.5956, 10.0891, 10.5767,
+        11.0701, 11.5577, 12.057, 12.5446, 13.038, 13.5256, 14.0249, 14.5125, 15.0117, 15.4935,
+        15.9985, 16.4804, 16.9796, 17.4614, 17.9606, 18.4483, 18.9417, 19.4293, 19.9285, 20.4161,
+      ]
+    downbeats [
+        0.2554, 2.2233, 4.1854, 6.1533, 8.1154, 10.0891, 12.057, 14.0249, 15.9985, 17.9606, 19.9285,
+      ]
+    onsets [
+        0.058, 0.2554, 1.2365, 1.7357, 2.2233, 2.7167, 3.2044, 3.692, 4.1854, 4.6788, 5.1664,
+        5.6599, 6.1533, 6.6409, 7.1343, 7.6452, 8.1154, 9.5956, 11.5577, 12.5446, 13.5256, 14.5125,
+        15.4935, 17.4614, 18.4483, 19.4293, 20.4161,
+      ]
+    drop 8.1154s strength 1.8506
+    section aud1 build 0.00s..8.1154s energy 0.3187
+    section aud2 drop 8.1154s..21.20s energy 0.8627
+    energy t0 0.00s dt 0.05s [
+        0.0222, 0.0365, 0.0511, 0.1007, 0.1655, 0.2035, 0.2299, 0.2269, 0.2037, 0.2074, 0.2167,
+        0.2131, 0.1985, 0.2109, 0.2378, 0.2472, 0.2557, 0.2416, 0.2209, 0.2301, 0.2381, 0.2299,
+        0.2166, 0.2405, 0.2724, 0.2779, 0.2889, 0.2644, 0.2392, 0.2513, 0.2464, 0.2065, 0.1721,
+        0.1962, 0.2333, 0.2489, 0.2619, 0.2233, 0.1887, 0.2027, 0.2106, 0.2034, 0.1953, 0.2385,
+        0.2812, 0.2856, 0.2815, 0.2219, 0.1734, 0.178, 0.1793, 0.1697, 0.189, 0.2496, 0.2821,
+        0.2851, 0.2648, 0.2028, 0.177, 0.1899, 0.195, 0.1889, 0.2237, 0.2983, 0.3533, 0.4035,
+        0.4026, 0.3313, 0.2699, 0.2188, 0.17, 0.1348, 0.2092, 0.3132, 0.3704, 0.4072, 0.3713,
+        0.3079, 0.3038, 0.3214, 0.3166, 0.3115, 0.3508, 0.4043, 0.4495, 0.4732, 0.4098, 0.3184,
+        0.2726, 0.246, 0.2178, 0.2277, 0.2845, 0.3421, 0.3807, 0.3737, 0.3044, 0.2362, 0.1941,
+        0.1781, 0.1815, 0.2189, 0.3456, 0.4872, 0.5566, 0.5279, 0.3981, 0.2694, 0.2116, 0.2166,
+        0.2362, 0.2984, 0.4591, 0.6042, 0.6593, 0.6087, 0.4489, 0.2914, 0.2169, 0.2067, 0.1981,
+        0.2941, 0.5281, 0.7471, 0.8443, 0.7607, 0.5306, 0.3064, 0.1888, 0.1721, 0.1578, 0.3011,
+        0.5642, 0.7916, 0.8857, 0.7581, 0.5129, 0.292, 0.182, 0.1791, 0.1865, 0.3595, 0.6393,
+        0.8697, 0.959, 0.8048, 0.5398, 0.3164, 0.2522, 0.2821, 0.3111, 0.3469, 0.3633, 0.3867,
+        0.4162, 0.4332, 0.4413, 0.4069, 0.3319, 0.2641, 0.2682, 0.4563, 0.7329, 0.9292, 0.9995,
+        0.9431, 0.8273, 0.7808, 0.817, 0.8401, 0.8501, 0.9138, 0.9765, 0.9555, 0.9027, 0.8424,
+        0.7682, 0.7767, 0.8348, 0.8376, 0.8585, 0.9272, 0.9755, 0.9472, 0.8956, 0.8381, 0.7836,
+        0.8187, 0.8891, 0.9048, 0.9463, 1.0, 1.0, 0.986, 0.9199, 0.8366, 0.7815, 0.8206, 0.8612,
+        0.8656, 0.9, 0.9639, 0.9827, 0.9271, 0.869, 0.799, 0.776, 0.8263, 0.8672, 0.8837, 0.9238,
+        0.9907, 0.9999, 0.9467, 0.8793, 0.8055, 0.7818, 0.832, 0.8709, 0.8755, 0.9275, 0.9972,
+        0.984, 0.9214, 0.8648, 0.7994, 0.8007, 0.8804, 0.9105, 0.927, 0.9917, 1.0, 1.0, 0.9368,
+        0.8386, 0.7495, 0.7533, 0.8087, 0.8249, 0.8543, 0.9318, 0.9955, 0.9709, 0.9157, 0.842,
+        0.777, 0.81, 0.8677, 0.8865, 0.9243, 0.9844, 1.0, 0.9683, 0.8991, 0.8197, 0.7689, 0.8087,
+        0.8584, 0.8726, 0.9065, 0.9764, 0.9997, 0.9487, 0.8863, 0.8101, 0.7797, 0.8315, 0.8869,
+        0.9132, 0.9646, 1.0, 1.0, 0.963, 0.8846, 0.798, 0.7707, 0.8304, 0.8628, 0.8577, 0.9093,
+        0.9808, 0.9771, 0.9209, 0.8556, 0.7858, 0.7742, 0.8378, 0.8699, 0.8767, 0.9406, 1.0, 0.9786,
+        0.9191, 0.8549, 0.7765, 0.7903, 0.8528, 0.857, 0.8782, 0.938, 0.985, 0.9588, 0.9038, 0.8362,
+        0.7793, 0.8131, 0.8726, 0.8936, 0.9383, 0.9985, 1.0, 0.9889, 0.9213, 0.8375, 0.7809, 0.8175,
+        0.8662, 0.8758, 0.9012, 0.9587, 0.9752, 0.914, 0.853, 0.7945, 0.7653, 0.8146, 0.8696,
+        0.8756, 0.9228, 0.9952, 1.0, 0.9446, 0.8721, 0.7971, 0.7789, 0.8348, 0.8791, 0.8791, 0.9175,
+        0.989, 0.9799, 0.9134, 0.858, 0.7905, 0.7824, 0.8601, 0.8925, 0.9138, 0.9841, 1.0, 1.0,
+        0.9426, 0.8599, 0.7717, 0.7851, 0.849, 0.8544, 0.872, 0.9356, 0.9878, 0.9696, 0.9213,
+        0.8515, 0.7826, 0.8015, 0.8533, 0.8696, 0.904, 0.9703, 1.0, 0.9648, 0.8977, 0.8242, 0.7755,
+        0.811, 0.8634, 0.8679, 0.8907, 0.9615, 0.9864, 0.9367, 0.8781, 0.8102, 0.7758, 0.8273,
+        0.8923, 0.9076, 0.9609, 1.0, 1.0, 0.9743, 0.8887, 0.7869, 0.7451, 0.7826, 0.8155, 0.8276,
+        0.8906, 0.9805, 0.9882, 0.9335, 0.874, 0.7904, 0.7802, 0.852, 0.8736, 0.8948, 0.9542, 1.0,
+        0.9784, 0.9054, 0.8286, 0.742, 0.7296, 0.7445, 0.6788, 0.5594, 0.3973, 0.2432, 0.13, 0.0625,
+        0.0421, 0.0372, 0.0324,
+      ]
+  }
+
+  section sec1 build 0.00s..8.0667s cps 0.124 mean_shot 4.0333s energy 0.3163 {
+    shot s1 0.00s..4.4167s frames 0..265 beats 8.98 off_beat offset 0.2363s group A {
+      look brightness 0.2691 contrast 0.1535 saturation 0.1183 temperature 0.0098 tint 0.0062 sharpness 0.576 dominant #4c4e4c bw
+      layout
+      motion camera complex magnitude 0.0014 zoom 1.1188 pan -0.1697,0.0629 rotation 20.9619deg
+      speed s1.speed1 1.7333s..2.1333s slowmo 0.5x->0.5x conf 0.75 keys [1.7333: 0.5, 1.8333: 0.5, 1.9333: 0.5, 2.0333: 0.5, 2.1167: 0.5] params {method: "frame_repeat", repeat: 2.0}
+      speed s1.speed2 2.8333s..3.1333s slowmo 0.5x->0.5x conf 0.75 keys [2.8333: 0.5, 2.9333: 0.5, 3.0333: 0.5, 3.1167: 0.5] params {method: "frame_repeat", repeat: 2.0}
+      pan s1.pan1 3.7224s..4.4167s by -0.1743,0.0777 ease_in conf 0.805 params {fit_r2: 0.9722}
+      speed s1.speed3 3.7333s..4.1333s slowmo 0.5x->0.5x conf 0.75 keys [3.7333: 0.5, 3.8333: 0.5, 3.9333: 0.5, 4.0333: 0.5, 4.1167: 0.5] params {method: "frame_repeat", repeat: 2.0}
+      rotate s1.rotate1 3.768s..4.2712s 0.0deg->19.5478deg ease_in_out conf 0.844 keys [
+          3.768: 0.0, 3.8375: 0.7179, 3.907: 2.5117, 3.9765: 6.0667, 4.046: 14.3535, 4.1155: 15.578,
+          4.185: 16.6605, 4.2545: 18.2467,
+        ] params {fit_r2: 0.9872}
+      zoom s1.zoom1 3.8625s..4.3803s 1.0->1.0947 ease_out conf 0.744 keys [
+          3.8625: 1.0, 3.9341: 1.0343, 4.0057: 1.0547, 4.0773: 1.0744, 4.1489: 1.0967,
+          4.2205: 1.0968, 4.292: 1.082, 4.3636: 1.0982,
+        ] params {scale_start: 0.9916, fit_r2: 0.9517, residual: 0.0012, inliers: 0.715}
+      flash s1.flash1 4.25s..4.2667s color #000000 intensity 0.2731 conf 0.637 keys [4.25: 0.2731] params {peak: 4.25}
+    }
+    transition t1 flash 4.3667s..4.4333s s1->s2 color #d8dbd8 off_beat offset 0.2313s conf 0.751 params {ramp_in: 1, ramp_out: 1, hold: 2}
+    shot s2 4.4167s..8.0667s frames 265..484 beats 7.42 off_beat offset 0.2313s group B {
+      look brightness 0.3382 contrast 0.1883 saturation 0.0983 temperature 0.0095 tint 0.0026 sharpness 0.3817 dominant #6e6e6c bw
+      layout
+      motion camera complex magnitude 0.0015 zoom 0.8875 pan -0.0001,0.0592 rotation -1.391deg
+      rotate s2.rotate1 4.8876s..6.5614s 0.0deg->7.0234deg ease_in conf 0.968 keys [
+          4.8876: 0.0, 5.1243: 0.1081, 5.361: 0.4548, 5.5978: 1.7392, 5.8345: 2.842, 6.0712: 3.8106,
+          6.308: 5.0794, 6.5447: 7.3695,
+        ] params {fit_r2: 0.9902}
+      speed s2.speed1 5.35s..5.6167s slowmo 0.5x->0.5x conf 0.75 keys [5.35: 0.5, 5.45: 0.5, 5.55: 0.5, 5.60: 0.5] params {method: "frame_repeat", repeat: 2.0}
+      zoom s2.zoom1 5.712s..6.9667s 1.0->1.0696 ease_out digital conf 0.831 keys [
+          5.712: 1.0, 5.8889: 1.015, 6.0657: 1.0284, 6.2426: 1.0434, 6.4194: 1.0503, 6.5963: 1.0556,
+          6.7731: 1.068, 6.95: 1.0669,
+        ] params {scale_start: 0.9928, fit_r2: 0.9925, residual: 0.0005, inliers: 0.976}
+      speed s2.speed2 5.7167s..6.0833s slowmo 0.5x->0.5x conf 0.75 keys [5.7167: 0.5, 5.8167: 0.5, 5.9167: 0.5, 6.0167: 0.5, 6.0667: 0.5] params {method: "frame_repeat", repeat: 2.0}
+      speed s2.speed3 6.1833s..6.5833s slowmo 0.5x->0.5x conf 0.75 keys [6.1833: 0.5, 6.2833: 0.5, 6.3833: 0.5, 6.4833: 0.5, 6.5667: 0.5] params {method: "frame_repeat", repeat: 2.0}
+      speed s2.speed4 6.6833s..7.0833s slowmo 0.5x->0.5x conf 0.75 keys [6.6833: 0.5, 6.7833: 0.5, 6.8833: 0.5, 6.9833: 0.5, 7.0667: 0.5] params {method: "frame_repeat", repeat: 2.0}
+      rotate s2.rotate2 6.8455s..8.0545s 0.0deg->-7.2372deg ease_out conf 0.952 keys [
+          6.8455: 0.0, 7.0158: -1.4989, 7.1861: -2.8644, 7.3565: -4.7727, 7.5268: -5.7792,
+          7.6972: -6.2625, 7.8675: -6.4203, 8.0379: -7.2506,
+        ] params {fit_r2: 0.9921}
+      zoom s2.zoom2 6.9667s..7.3606s 1.0->0.9382 ease_in digital conf 0.785 keys [
+          6.9003: 1.0, 6.9636: 0.9968, 7.027: 0.9938, 7.0904: 0.9899, 7.1538: 0.9763,
+          7.2172: 0.9653, 7.2806: 0.9516, 7.3439: 0.9402,
+        ] params {scale_start: 1.0657, fit_r2: 0.9939, residual: 0.0006, inliers: 0.956}
+      speed s2.speed5 7.1833s..7.4167s slowmo 0.5x->0.5x conf 0.75 keys [7.1833: 0.5, 7.2833: 0.5, 7.3833: 0.5, 7.40: 0.5] params {method: "frame_repeat", repeat: 2.0}
+      blur s2.blur1 7.4167s..8.0333s amount 0.0031 ease_in conf 0.765 keys [
+          7.4167: 0.0025, 7.4333: 0.0024, 7.45: 0.0025, 7.4667: 0.0025, 7.4833: 0.0026,
+          7.50: 0.0028, 7.5167: 0.0028, 7.5333: 0.0029, 7.55: 0.0029, 7.5667: 0.003, 7.5833: 0.003,
+          7.60: 0.003, 7.6167: 0.0031, 7.6333: 0.003, 7.65: 0.0029, 7.6667: 0.0029, 7.6833: 0.0029,
+          7.70: 0.0028, 7.7167: 0.0027, 7.7333: 0.0028, 7.75: 0.0027, 7.7667: 0.0027,
+          7.7833: 0.0026, 7.80: 0.0027, 7.8167: 0.0027, 7.8333: 0.0028, 7.85: 0.0027,
+          7.8667: 0.0027, 7.8833: 0.0025, 7.90: 0.0025, 7.9167: 0.0024, 7.9333: 0.0023,
+          7.95: 0.0022, 7.9667: 0.0021, 7.9833: 0.0021, 8.00: 0.0019, 8.0167: 0.0017,
+        ] params {peak: 7.6333}
+      zoom s2.zoom3 7.4167s..8.0667s 1.0->0.8295 ease_in digital conf 0.915 keys [
+          7.4167: 1.0, 7.5071: 0.9948, 7.5976: 0.9854, 7.6881: 0.9663, 7.7786: 0.94, 7.869: 0.9107,
+          7.9595: 0.8764, 8.05: 0.8115,
+        ] params {scale_start: 1.092, fit_r2: 0.99, residual: 0.001, inliers: 0.867}
+    }
+  }
+
+  section sec2 drop 8.0667s..21.20s cps 2.5888 mean_shot 0.3863s energy 0.8631 {
+    transition t2 flash 8.05s..8.10s s2->s3 color #d8dbd8 on_beat offset -0.0487s params {ramp_in: 0, ramp_out: 0, hold: 3}
+    shot s3 8.0667s..8.60s frames 484..516 beats 1.08 on_beat offset -0.0487s group C {
+      look brightness 0.49 contrast 0.2709 saturation 0.0715 temperature 0.0006 tint 0.0164 sharpness 0.5056 dominant #bdc1bd bw
+      layout
+      motion camera complex magnitude 0.0224 zoom 0.632 pan -0.2641,0.0581 rotation -11.5038deg
+      zoom s3.zoom1 8.0667s..8.5125s 1.0->0.653 conf 0.496 keys [
+          8.0667: 1.0, 8.128: 0.926, 8.1893: 0.8706, 8.2506: 0.8247, 8.3119: 0.7874, 8.3732: 0.7398,
+          8.4345: 0.6841, 8.4958: 0.6462,
+        ] params {scale_start: 0.9786, fit_r2: 0.9952, residual: 0.0016, inliers: 0.608}
+      rotate s3.rotate1 8.0667s..8.5273s 0.0deg->-10.2763deg ease_out conf 0.422 keys [
+          8.0667: 0.0, 8.1301: -2.516, 8.1935: -9.7942, 8.2569: -7.6733, 8.3203: -9.8844,
+          8.3838: -9.3766, 8.4472: -11.3892, 8.5106: -11.8902,
+        ] params {fit_r2: 0.8761}
+    }
+    transition t3 flash 8.5667s..8.6333s s3->s4 color #d8dbd8 on_beat offset -0.0088s params {ramp_in: 0, ramp_out: 0, hold: 4}
+    shot s4 8.60s..9.0667s frames 516..544 beats 0.95 on_beat offset -0.0088s group D {
+      look brightness 0.1974 contrast 0.1578 saturation 0.1564 temperature -0.0283 tint 0.013 sharpness 0.5419 dominant #262b29
+      layout
+      motion camera complex magnitude 0.01 zoom 0.9902 pan -0.1369,-0.0294 rotation -2.5898deg
+      pan s4.pan1 8.60s..9.0121s by -0.1186,-0.0266 ease_in_out conf 0.775 params {fit_r2: 0.8788}
+    }
+    transition t4 flash 9.05s..9.1167s s4->s5 color #d8dbd8 on_beat offset -0.0414s params {ramp_in: 0, ramp_out: 0, hold: 4}
+    shot s5 9.0667s..9.5667s frames 544..574 beats 1.02 on_beat offset -0.0414s group E {
+      look brightness 0.2708 contrast 0.1725 saturation 0.0966 temperature -0.0221 tint 0.0101 sharpness 0.7222 dominant #2f3333 bw
+      layout
+      motion camera complex magnitude 0.0243 zoom 1.076 pan -0.7029,0.0725 rotation -5.6077deg
+      pan s5.pan1 9.1303s..9.5667s by -0.6668,0.0608 conf 0.32 params {fit_r2: 0.9829}
+    }
+    transition t5 flash 9.5333s..9.60s s5->s6 color #d8dbd8 on_beat offset -0.029s params {ramp_in: 0, ramp_out: 0, hold: 4}
+    shot s6 9.5667s..10.05s frames 574..603 beats 0.98 on_beat offset -0.029s group F {
+      look brightness 0.2811 contrast 0.1842 saturation 0.2017 temperature -0.0627 tint 0.0084 sharpness 0.7073 dominant #272c2d
+      layout
+      motion camera complex magnitude 0.0203 zoom 1.3152 pan -0.3858,0.0291 rotation -3.4021deg
+      pan s6.pan1 9.5667s..10.0136s by -0.3318,0.0219 ease_in conf 0.528 params {fit_r2: 0.9541}
+      zoom s6.zoom1 9.578s..10.05s 1.0->1.3117 conf 0.566 keys [
+          9.578: 1.0, 9.6431: 1.045, 9.7081: 1.077, 9.7732: 1.1143, 9.8382: 1.1606, 9.9032: 1.2195,
+          9.9683: 1.2627, 10.0333: 1.3055,
+        ] params {scale_start: 1.0003, fit_r2: 0.9939, residual: 0.0008, inliers: 0.62}
+    }
+    transition t6 cut 10.05s..10.05s s6->s7 on_beat offset -0.0391s conf 0.608 params {score: 0.365, threshold: 0.3}
+    shot s7 10.05s..10.0833s frames 603..605 beats 0.07 on_beat offset -0.0391s group G {
+      look brightness 0.7298 contrast 0.2257 saturation 0.0548 temperature -0.0032 tint 0.0137 sharpness 0.9001 dominant #d0d4d0 bw
+      layout
+      motion
+    }
+    transition t7 flash 10.0667s..10.1167s s7->s8 color #d8dbd8 on_beat offset -0.0057s params {ramp_in: 0, ramp_out: 0, hold: 3}
+    shot s8 10.0833s..10.5833s frames 605..635 beats 1.02 on_beat offset -0.0057s group H {
+      look brightness 0.2319 contrast 0.2205 saturation 0.2158 temperature -0.0158 tint 0.012 sharpness 0.5636 dominant #1c211e
+      layout
+      motion camera complex magnitude 0.009 zoom 0.9965 pan -0.014,0.0322 rotation -0.1149deg
+    }
+    transition t8 flash 10.55s..10.60s s8->s9 color #d8dbd8 on_beat offset 0.0066s conf 0.721 params {ramp_in: 0, ramp_out: 0, hold: 3}
+    shot s9 10.5833s..11.0333s frames 635..662 beats 0.92 on_beat offset 0.0066s group H {
+      look brightness 0.2768 contrast 0.2141 saturation 0.1699 temperature -0.0144 tint 0.0136 sharpness 0.5611 dominant #232825
+      layout
+      motion camera complex magnitude 0.0106 zoom 1.0046 pan -0.0468,0.042 rotation 3.3734deg
+      blur s9.blur1 10.60s..10.6333s amount 0.0036 conf 0.721 keys [10.60: 0.0036, 10.6167: 0.0034] params {peak: 10.6167}
+    }
+    transition t9 cut 11.0333s..11.0333s s9->s10 on_beat offset -0.0368s conf 0.708 params {score: 0.425, threshold: 0.3}
+    shot s10 11.0333s..11.0667s frames 662..664 beats 0.07 on_beat offset -0.0368s group G {
+      look brightness 0.7537 contrast 0.1815 saturation 0.0461 temperature -0.0106 tint 0.0119 sharpness 0.4954 dominant #cdd3d1 bw
+      layout letterbox 0.0,0.3333 pillarbox 0.0,0.2406 content 0.0,0.0,0.7594,0.6667
+      motion
+    }
+    transition t10 flash 11.05s..11.10s s10->s11 color #d8dbd8 on_beat offset -0.0034s params {ramp_in: 0, ramp_out: 0, hold: 3}
+    shot s11 11.0667s..11.55s frames 664..693 beats 0.98 on_beat offset -0.0034s group I {
+      look brightness 0.3366 contrast 0.1813 saturation 0.1401 temperature 0.0171 tint 0.0137 sharpness 0.5811 dominant #71726f
+      layout
+      motion camera complex magnitude 0.0234 zoom 1.0548 pan 0.6611,-0.1384 rotation -3.2337deg
+    }
+    transition t11 flash 11.5167s..11.5833s s11->s12 color #d8dbd8 on_beat offset -0.0077s conf 0.888 params {ramp_in: 0, ramp_out: 0, hold: 4}
+    shot s12 11.55s..12.05s frames 693..723 beats 1.02 on_beat offset -0.0077s group J {
+      look brightness 0.3348 contrast 0.163 saturation 0.1636 temperature 0.0383 tint 0.02 sharpness 0.5091 dominant #484b42
+      layout
+      motion camera complex magnitude 0.0267 zoom 0.87 pan 0.9409,-0.0585 rotation -2.894deg
+    }
+    transition t12 flash 12.0333s..12.0833s s12->s13 color #d8dbd8 on_beat offset -0.007s params {ramp_in: 0, ramp_out: 0, hold: 3}
+    shot s13 12.05s..12.5333s frames 723..752 beats 0.98 on_beat offset -0.007s group K {
+      look brightness 0.3205 contrast 0.1545 saturation 0.0714 temperature 0.008 tint 0.0065 sharpness 0.6316 vignette 0.3179 dominant #4a4b49 bw
+      layout
+      motion camera complex magnitude 0.0166 zoom 0.9285 pan -0.3578,0.0587 rotation 4.4842deg
+      pan s13.pan1 12.05s..12.497s by -0.3085,0.0281 ease_in conf 0.615 params {fit_r2: 0.9623}
+      blur s13.blur1 12.0833s..12.1167s amount 0.0037 conf 0.766 keys [12.0833: 0.0037, 12.10: 0.0034] params {peak: 12.0833}
+    }
+    transition t13 flash 12.5167s..12.5833s s13->s14 color #d8dbd8 on_beat offset -0.0112s params {ramp_in: 0, ramp_out: 0, hold: 4}
+    shot s14 12.5333s..12.9833s frames 752..779 beats 0.92 on_beat offset -0.0112s group L {
+      look brightness 0.3278 contrast 0.2495 saturation 0.1997 temperature 0.0202 tint 0.0114 sharpness 0.6451 dominant #282821
+      layout
+      motion camera complex magnitude 0.0266 zoom 1.228 pan 0.2086,-0.0879 rotation -3.0489deg
+      zoom s14.zoom1 12.5458s..12.917s 1.0->1.2242 optical conf 0.306 keys [
+          12.5458: 1.0, 12.5965: 1.0303, 12.6471: 1.0543, 12.6978: 1.0884, 12.7484: 1.1214,
+          12.7991: 1.1527, 12.8497: 1.1834, 12.9004: 1.2162,
+        ] params {scale_start: 1.0001, fit_r2: 0.9987, residual: 0.0012, inliers: 0.489}
+    }
+    transition t14 cut 12.9833s..12.9833s s14->s15 on_beat offset -0.0547s conf 0.62 params {score: 0.372, threshold: 0.3}
+    shot s15 12.9833s..13.0167s frames 779..781 beats 0.07 on_beat offset -0.0547s group G {
+      look brightness 0.7293 contrast 0.2059 saturation 0.0468 temperature 0.0021 tint 0.0129 sharpness 0.788 dominant #cfd2cc bw
+      layout letterbox 0.4222,0.0 content 0.0,0.4222,1.0,0.5778
+      motion
+    }
+    transition t15 flash 13.00s..13.05s s15->s16 color #d8dbd8 on_beat offset -0.0213s params {ramp_in: 0, ramp_out: 0, hold: 3}
+    shot s16 13.0167s..13.50s frames 781..810 beats 0.98 on_beat offset -0.0213s group M {
+      look brightness 0.3045 contrast 0.1787 saturation 0.157 temperature 0.067 tint 0.0021 sharpness 0.7962 dominant #4f4a44
+      layout
+      motion camera complex magnitude 0.0123 zoom 1.0685 pan -0.0302,0.1549 rotation -2.3419deg
+      zoom s16.zoom1 13.0167s..13.4455s 1.0->1.0616 ease_out optical conf 0.329 keys [
+          13.0167: 1.0, 13.0755: 1.0153, 13.1344: 1.0384, 13.1933: 1.0459, 13.2522: 1.0522,
+          13.311: 1.0561, 13.3699: 1.0632, 13.4288: 1.0621,
+        ] params {scale_start: 1.0019, fit_r2: 0.9735, residual: 0.0014, inliers: 0.56}
+      pan s16.pan1 13.053s..13.4962s by -0.0169,0.1564 ease_in conf 0.379 params {fit_r2: 0.8026}
+    }
+    transition t16 flash 13.4833s..13.55s s16->s17 color #d8dbd8 on_beat offset -0.0256s params {ramp_in: 0, ramp_out: 0, hold: 4}
+    shot s17 13.50s..14.05s frames 810..843 beats 1.12 on_beat offset -0.0256s group N {
+      look brightness 0.3188 contrast 0.2028 saturation 0.2057 temperature 0.0576 tint 0.0032 sharpness 0.3634 dominant #2e2924
+      layout
+      motion camera complex magnitude 0.009 zoom 1.0788 pan -0.0255,0.0533 rotation -1.8543deg
+    }
+    transition t17 flash 14.00s..14.05s s17->s18 color #d8dbd8 on_beat offset 0.0251s conf 0.633 params {ramp_in: 0, ramp_out: 0, hold: 3}
+    shot s18 14.05s..14.9833s frames 843..899 beats 1.9 on_beat offset 0.0251s group N {
+      look brightness 0.3117 contrast 0.2065 saturation 0.2146 temperature 0.058 tint 0.0025 sharpness 0.3724 dominant #2d2924
+      layout
+      motion camera complex magnitude 0.0097 zoom 1.0415 pan -0.1164,0.0484 rotation -1.5869deg
+      flash s18.flash1 14.4667s..14.5167s intensity 0.996 conf 0.95 keys [14.4667: 0.8134, 14.4833: 0.996, 14.50: 0.5482] params {peak: 14.4833}
+    }
+    transition t18 flash 14.95s..15.00s s18->s19 color #d8dbd8 on_beat offset -0.0284s params {ramp_in: 0, ramp_out: 0, hold: 3}
+    shot s19 14.9833s..15.45s frames 899..927 beats 0.95 on_beat offset -0.0284s group O {
+      look brightness 0.2345 contrast 0.1517 saturation 0.1321 temperature 0.0224 tint 0.0095 sharpness 0.7489 dominant #2a2d2b
+      layout
+      motion camera complex magnitude 0.0178 zoom 0.8748 pan -0.3861,0.03 rotation 1.2468deg
+      zoom s19.zoom1 14.9833s..15.4129s 1.0->0.8962 optical conf 0.324 keys [
+          14.9833: 1.0, 15.0423: 0.943, 15.1013: 0.941, 15.1603: 0.9408, 15.2193: 0.9318,
+          15.2782: 0.9076, 15.3372: 0.8831, 15.3962: 0.8753,
+        ] params {scale_start: 0.9766, fit_r2: 0.9068, residual: 0.0013, inliers: 0.499}
+      pan s19.pan1 14.9833s..15.45s by -0.3231,0.0009 conf 0.333 params {fit_r2: 0.9487}
+      blur s19.blur1 15.00s..15.0333s amount 0.0039 conf 0.797 keys [15.00: 0.0039, 15.0167: 0.0035] params {peak: 15.0}
+    }
+    transition t19 cut 15.45s..15.45s s19->s20 on_beat offset -0.0435s conf 0.504 params {score: 0.303, threshold: 0.3}
+    shot s20 15.45s..15.4833s frames 927..929 beats 0.07 on_beat offset -0.0435s group P {
+      look brightness 0.6644 contrast 0.1716 saturation 0.0352 temperature -0.0041 tint 0.0154 sharpness 0.77 dominant #b7bcb8 bw
+      layout letterbox 0.0,0.2556 pillarbox 0.0219,0.0 content 0.0219,0.0,0.9781,0.7444
+      motion
+    }
+    transition t20 flash 15.4667s..15.5167s s20->s21 color #d8dbd8 on_beat offset -0.0102s params {ramp_in: 0, ramp_out: 0, hold: 3}
+    shot s21 15.4833s..15.9333s frames 929..956 beats 0.92 on_beat offset -0.0102s group Q {
+      look brightness 0.2851 contrast 0.1824 saturation 0.1812 temperature 0.0377 tint 0.0202 sharpness 0.6629 dominant #31332a
+      layout
+      motion camera complex magnitude 0.0233 zoom 1.0044 pan -0.7313,0.0489 rotation 1.2205deg
+      blur s21.blur1 15.5167s..15.55s amount 0.0031 conf 0.716 keys [15.5167: 0.0031, 15.5333: 0.0027] params {peak: 15.5167}
+      pan s21.pan1 15.5242s..15.9311s by -0.7034,0.017 conf 0.34 params {fit_r2: 0.9805}
+    }
+    transition t21 cut 15.9333s..15.9333s s21->s22 on_beat offset -0.0652s conf 0.907 params {score: 0.544, threshold: 0.3}
+    shot s22 15.9333s..15.9667s frames 956..958 beats 0.07 on_beat offset -0.0652s group R {
+      look brightness 0.8073 contrast 0.1167 saturation 0.0251 temperature 0.0015 tint 0.0149 sharpness 0.4906 dominant #d2d5d1 bw
+      layout
+      motion
+    }
+    transition t22 flash 15.95s..16.00s s22->s23 color #d8dbd8 on_beat offset -0.0319s params {ramp_in: 0, ramp_out: 0, hold: 3}
+    shot s23 15.9667s..16.4667s frames 958..988 beats 1.02 on_beat offset -0.0319s group S {
+      look brightness 0.2823 contrast 0.2247 saturation 0.1524 temperature -0.0072 tint 0.0062 sharpness 0.5257 dominant #282826
+      layout
+      motion camera complex magnitude 0.0353 zoom 0.9435 pan 0.5724,-0.0653 rotation 3.3245deg
+      blur s23.blur1 16.00s..16.10s amount 0.0036 conf 0.786 keys [
+          16.00: 0.0031, 16.0167: 0.0022, 16.0333: 0.0015, 16.05: 0.003, 16.0667: 0.0036,
+          16.0833: 0.0027,
+        ] params {peak: 16.0}
+    }
+    transition t23 flash 16.45s..16.5167s s23->s24 color #d8dbd8 on_beat offset -0.0137s params {ramp_in: 0, ramp_out: 0, hold: 4}
+    shot s24 16.4667s..16.9333s frames 988..1016 beats 0.95 on_beat offset -0.0137s group T {
+      look brightness 0.2737 contrast 0.1255 saturation 0.0922 temperature -0.0114 tint 0.0096 sharpness 0.6257 vignette 0.3381 dominant #3a3d3b bw
+      layout
+      motion camera complex magnitude 0.0128 zoom 1.1952 pan -0.2035,-0.0737 rotation -8.1329deg
+      pan s24.pan1 16.4667s..16.897s by -0.1851,-0.0633 ease_in conf 0.533 params {fit_r2: 0.9477}
+      rotate s24.rotate1 16.4689s..16.7335s 0.0deg->-8.3709deg ease_out conf 0.378 keys [
+          16.4689: 0.0, 16.5044: -2.1816, 16.5398: -2.5435, 16.5752: -7.0592, 16.6106: -7.8562,
+          16.646: -5.9359, 16.6814: -7.2709, 16.7169: -8.9241,
+        ] params {fit_r2: 0.8826}
+      zoom s24.zoom1 16.4689s..16.9333s 1.0->1.1941 conf 0.603 keys [
+          16.4689: 1.0, 16.5329: 1.0311, 16.5969: 1.0553, 16.6608: 1.0778, 16.7248: 1.1036,
+          16.7887: 1.1384, 16.8527: 1.1675, 16.9167: 1.1939,
+        ] params {scale_start: 1.0, fit_r2: 0.9973, residual: 0.0007, inliers: 0.653}
+      blur s24.blur1 16.55s..16.60s amount 0.0037 conf 0.757 keys [16.55: 0.0028, 16.5667: 0.0037, 16.5833: 0.0029] params {peak: 16.5667}
+    }
+    transition t24 cut 16.9333s..16.9333s s24->s25 on_beat offset -0.0463s conf 0.795 params {score: 0.477, threshold: 0.3}
+    shot s25 16.9333s..16.9667s frames 1016..1018 beats 0.07 on_beat offset -0.0463s group R {
+      look brightness 0.8235 contrast 0.0926 saturation 0.0187 temperature -0.0011 tint 0.0118 sharpness 0.5563 dominant #d3d7d4 bw
+      layout
+      motion
+    }
+    transition t25 flash 16.95s..17.00s s25->s26 color #d8dbd8 on_beat offset -0.0129s params {ramp_in: 0, ramp_out: 0, hold: 3}
+    shot s26 16.9667s..17.4333s frames 1018..1046 beats 0.95 on_beat offset -0.0129s group U {
+      look brightness 0.2723 contrast 0.164 saturation 0.189 temperature 0.0603 tint 0.0066 sharpness 0.7049 dominant #333029
+      layout
+      motion camera complex magnitude 0.0151 zoom 1.2205 pan 0.1125,0.0138 rotation -2.034deg
+      zoom s26.zoom1 16.9667s..17.3614s 1.0->1.2003 conf 0.747 keys [
+          16.9667: 1.0, 17.0207: 1.0419, 17.0747: 1.0699, 17.1287: 1.0985, 17.1827: 1.1264,
+          17.2367: 1.16, 17.2907: 1.181, 17.3447: 1.2004,
+        ] params {scale_start: 1.0095, fit_r2: 0.9949, residual: 0.0012, inliers: 0.739}
+      pan s26.pan1 17.003s..17.397s by 0.1357,-0.0 ease_out conf 0.714 params {fit_r2: 0.8436}
+    }
+    transition t26 cut 17.4333s..17.4333s s26->s27 on_beat offset -0.0281s conf 0.628 params {score: 0.377, threshold: 0.3}
+    shot s27 17.4333s..17.4667s frames 1046..1048 beats 0.07 on_beat offset -0.0281s group V {
+      look brightness 0.7711 contrast 0.1559 saturation 0.0608 temperature 0.0217 tint 0.0226 sharpness 0.7248 dominant #cfd1c7
+      layout
+      motion
+    }
+    transition t27 flash 17.45s..17.50s s27->s28 color #d8dbd8 on_beat offset 0.0053s params {ramp_in: 0, ramp_out: 0, hold: 3}
+    shot s28 17.4667s..17.95s frames 1048..1077 beats 0.98 on_beat offset 0.0053s group W {
+      look brightness 0.3195 contrast 0.2352 saturation 0.1324 temperature 0.0232 tint 0.016 sharpness 0.4759 dominant #2c2e27
+      layout
+      motion camera complex magnitude 0.0135 zoom 0.962 pan -0.2092,-0.009 rotation 0.5116deg
+      pan s28.pan1 17.4667s..17.95s by -0.1798,-0.0275 ease_out conf 0.308 params {fit_r2: 0.9087}
+    }
+    transition t28 flash 17.9333s..17.9833s s28->s29 color #d8dbd8 on_beat offset -0.0106s params {ramp_in: 0, ramp_out: 0, hold: 3}
+    shot s29 17.95s..18.4167s frames 1077..1105 beats 0.95 on_beat offset -0.0106s group X {
+      look brightness 0.2898 contrast 0.1401 saturation 0.0982 temperature 0.0302 tint 0.0147 sharpness 0.6713 vignette 0.5424 dominant #42433e bw
+      layout
+      motion camera complex magnitude 0.0226 zoom 1.2626 pan 0.0186,-0.0273 rotation 0.2412deg
+      zoom s29.zoom1 17.95s..18.4167s 1.0->1.2043 ease_out conf 0.634 keys [
+          17.95: 1.0, 18.0143: 1.1324, 18.0786: 1.1519, 18.1429: 1.1718, 18.2071: 1.1992,
+          18.2714: 1.2257, 18.3357: 1.2517, 18.40: 1.2626,
+        ] params {scale_start: 1.0387, fit_r2: 0.9328, residual: 0.0011, inliers: 0.704}
+      blur s29.blur1 17.9833s..18.0167s amount 0.0046 conf 0.77 keys [17.9833: 0.0046, 18.00: 0.0033] params {peak: 17.9833}
+      pan s29.pan1 17.9864s..18.4167s by 0.0963,-0.0581 ease_in conf 0.426 params {fit_r2: 0.5812}
+    }
+    transition t29 flash 18.40s..18.45s s29->s30 color #d8dbd8 on_beat offset -0.0316s params {ramp_in: 0, ramp_out: 0, hold: 3}
+    shot s30 18.4167s..18.9167s frames 1105..1135 beats 1.02 on_beat offset -0.0316s group Y {
+      look brightness 0.381 contrast 0.1379 saturation 0.0679 temperature -0.0012 tint 0.0126 sharpness 0.5638 dominant #515551 bw
+      layout content 0.1437,0.1667,0.7562,0.6556 blur_pad
+      motion camera complex magnitude 0.0126 zoom 1.0612 pan 0.1787,0.0246 rotation -0.0175deg
+      zoom s30.zoom1 18.4167s..18.9167s 1.0->1.0541 conf 0.52 keys [
+          18.4167: 1.0, 18.4857: 1.018, 18.5548: 1.0229, 18.6238: 1.0274, 18.6929: 1.0318,
+          18.7619: 1.0416, 18.831: 1.0526, 18.90: 1.0612,
+        ] params {scale_start: 1.0046, fit_r2: 0.9735, residual: 0.0008, inliers: 0.925}
+      pan s30.pan1 18.4712s..18.9167s by 0.1793,0.0018 ease_out conf 0.833 params {fit_r2: 0.9387}
+    }
+    transition t30 flash 18.8833s..18.9333s s30->s31 color #d8dbd8 on_beat offset -0.025s params {ramp_in: 0, ramp_out: 0, hold: 3}
+    shot s31 18.9167s..19.4167s frames 1135..1165 beats 1.02 on_beat offset -0.025s group U {
+      look brightness 0.2372 contrast 0.1781 saturation 0.2092 temperature 0.0694 tint 0.0059 sharpness 0.7273 dominant #2d2a24
+      layout
+      motion camera complex magnitude 0.017 zoom 1.0237 pan 0.1745,-0.0165 rotation -5.1019deg
+      pan s31.pan1 18.9205s..19.3803s by 0.1612,-0.0271 ease_out conf 0.811 params {fit_r2: 0.9102}
+      blur s31.blur1 18.9333s..18.9667s amount 0.0036 conf 0.747 keys [18.9333: 0.0036, 18.95: 0.0036] params {peak: 18.95}
+    }
+    transition t31 flash 19.3833s..19.4333s s31->s32 color #d8dbd8 on_beat offset -0.0126s params {ramp_in: 0, ramp_out: 0, hold: 3}
+    shot s32 19.4167s..19.8667s frames 1165..1192 beats 0.92 on_beat offset -0.0126s group Z {
+      look brightness 0.1268 contrast 0.1269 saturation 0.2148 temperature 0.0095 tint 0.0125 sharpness 0.5375 dominant #171a16
+      layout
+      motion camera complex magnitude 0.0145 zoom 1.5367 pan -0.0442,0.1864 rotation 1.3274deg
+      zoom s32.zoom1 19.4269s..19.8667s 1.0->1.5198 optical conf 0.385 keys [
+          19.4269: 1.0, 19.4873: 1.0674, 19.5478: 1.1319, 19.6082: 1.2015, 19.6687: 1.2732,
+          19.7291: 1.3462, 19.7896: 1.4402, 19.85: 1.5199,
+        ] params {scale_start: 1.0005, fit_r2: 0.9953, residual: 0.0012, inliers: 0.514}
+    }
+    transition t32 cut 19.8667s..19.8667s s32->s33 on_beat offset -0.0619s conf 0.795 params {score: 0.477, threshold: 0.3}
+    shot s33 19.8667s..19.90s frames 1192..1194 beats 0.07 on_beat offset -0.0619s group G {
+      look brightness 0.712 contrast 0.2124 saturation 0.0432 temperature 0.0055 tint 0.0105 sharpness 0.8794 dominant #c9cbc6 bw
+      layout
+      motion
+    }
+    transition t33 flash 19.8833s..19.9167s s33->s34 color #d8dbd8 on_beat offset -0.0285s params {ramp_in: 0, ramp_out: 0, hold: 2}
+    shot s34 19.90s..20.35s frames 1194..1221 beats 0.92 on_beat offset -0.0285s group AA {
+      look brightness 0.1336 contrast 0.0938 saturation 0.2333 temperature 0.0825 tint 0.0077 sharpness 0.5905 vignette 0.7179 dominant #21211c
+      layout letterbox 0.05,0.0889 content 0.0,0.2278,1.0,0.5167 blur_pad
+      motion camera complex magnitude 0.0223 zoom 0.9399 pan 0.5686,-0.017 rotation -1.9765deg
+      zoom s34.zoom1 19.90s..20.3333s 1.0->0.9435 conf 0.525 keys [
+          19.90: 1.0, 19.9595: 0.9898, 20.019: 0.9748, 20.0786: 0.9714, 20.1381: 0.9639,
+          20.1976: 0.9562, 20.2571: 0.9513, 20.3167: 0.9391,
+        ] params {scale_start: 0.9962, fit_r2: 0.9727, residual: 0.0008, inliers: 0.713}
+      blur s34.blur1 19.9167s..20.0333s amount 0.0039 ease_in conf 0.773 keys [
+          19.9167: 0.0033, 19.9333: 0.0039, 19.95: 0.0024, 19.9667: 0.0025, 19.9833: 0.0037,
+          20.00: 0.0033, 20.0167: 0.0016,
+        ] params {peak: 19.9333}
+      pan s34.pan1 19.9909s..20.35s by 0.5964,-0.0231 conf 0.81 params {fit_r2: 0.9884}
+    }
+    transition t34 cut 20.35s..20.35s s34->s35 on_beat offset -0.0661s params {score: 0.661, threshold: 0.3}
+    shot s35 20.35s..20.3833s frames 1221..1223 beats 0.07 on_beat offset -0.0661s group V {
+      look brightness 0.8111 contrast 0.0734 saturation 0.0513 temperature 0.0194 tint 0.0232 sharpness 0.6112 dominant #d0d2c8
+      layout
+      motion
+    }
+    transition t35 flash 20.3667s..20.4167s s35->s36 color #d8dbd8 on_beat offset -0.0328s params {ramp_in: 0, ramp_out: 0, hold: 3}
+    shot s36 20.3833s..21.20s frames 1223..1272 beats 1.66 on_beat offset -0.0328s group N {
+      look brightness 0.3977 contrast 0.2299 saturation 0.1581 temperature 0.0369 tint 0.0052 sharpness 0.474 dominant #76736c
+      layout
+      motion camera complex magnitude 0.0048 zoom 0.9967 pan 0.0909,-0.0256 rotation -6.3758deg
+      rotate s36.rotate1 20.3864s..21.0674s 0.0deg->-7.3832deg punch conf 0.511 keys [
+          20.3864: 0.0, 20.4813: -8.4287, 20.5762: -7.4704, 20.6711: -7.1497, 20.766: -6.9387,
+          20.8609: -6.7552, 20.9558: -6.5411, 21.0508: -6.327,
+        ] params {fit_r2: 0.8467}
+      pan s36.pan1 20.3924s..21.0432s by 0.0916,-0.0439 punch conf 0.569 params {fit_r2: 0.8942}
+    }
+    transition t36 fade_black 20.7667s..21.20s s36->none color #000100 params {edge: "end"}
+  }
+
+  pattern p1 cut_on_beat(cuts=35, on_beat=34, tolerance=0.07) support 0.971 "97% of cuts land on the beat (within 70 ms), so the edit is cut to the music."
+  pattern p2 cut_every_n_beats(n=8.0, seconds=3.9341, section="build", shots=2, matching=2) support 1.0 span 0.00s..8.0667s "In the build, the edit cuts every 8 beats (3.93 s at 122 BPM); 2 of 2 shots follow it."
+  pattern p3 cut_every_n_beats(n=1.0, seconds=0.4918, section="drop", shots=34, matching=23) support 0.676 span 8.0667s..21.20s "In the drop, the edit cuts every beat (0.49 s at 122 BPM); 23 of 34 shots follow it."
+  pattern p4 pacing_accelerates_at_drop(before=0.124, after=2.5888, ratio=20.883) support 1.0 "Cutting speeds up when the drop hits: 0.12 -> 2.59 cuts per second (20.9x faster)."
+  pattern p5 "effect_on_drop:flash"(kind="flash", source="transition", drops=[8.1154]) support 1.0 "A flash transition lands right on the drop (8.12 s)."
+  pattern p6 "effect_on_drop:rotate"(kind="rotate", source="effect", drops=[8.1154]) support 1.0 "A rotate effect lands right on the drop (8.12 s)."
+  pattern p7 "effect_on_drop:zoom"(kind="zoom", source="effect", drops=[8.1154]) support 1.0 "A zoom effect lands right on the drop (8.12 s)."
+  pattern p8 "effect_on_beat:blur"(effect="blur", count=10, on_beat=9) support 0.9 "Blur effects hit on the beat (9 of 10)."
+  pattern p9 "effect_on_beat:zoom"(effect="zoom", count=15, on_beat=12) support 0.8 "Zoom effects hit on the beat (12 of 15)."
+  pattern p10 flash_on_cut(count=26, cuts=35) support 0.743 "A flash punctuates 26 of 35 cuts (74%)."
+  pattern p11 speed_ramp_on_beat(count=8, on_beat=7) support 0.875 "Speed ramps start or land on a beat (7 of 8)."
+  pattern p12 recurring_source(groups=["G", "N", "R", "U", "V"], returns=7) support 0.361 "The edit cuts away and comes back to the same clip 7 times (source groups G, N, R, U, V)."
+
+  stats shots 36 transitions 27 mean 0.5889s median 0.4667s min 0.0333s max 4.4167s cpm 99.0566 on_beat_ratio 0.9714 first_cut 4.4167s effects {blur: 10, flash: 2, pan: 16, rotate: 6, speed: 8, zoom: 15} transition_kinds {cut: 9, fade_black: 1, flash: 26} {
+    pacing t0 0.50s dt 0.50s [
+        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 2.0, 2.0,
+        2.0, 3.0, 3.0, 3.0, 3.0, 2.0, 3.0, 3.0, 2.0, 2.0, 2.0, 3.0, 4.0, 3.0, 3.0, 4.0, 3.0, 2.0,
+        2.0, 2.0, 3.0, 4.0, 2.0,
+      ]
+  }
+
+  provenance {
+    tool: "editast",
+    version: "0.1.0",
+    analyzers: {shots: "ok", motion: "ok", timefx: "ok", look: "ok", text: "ok (ocr: rapidocr)", audio: "ok"},
+    warnings: [],
+    timings: {
+      decode: 12.3353,
+      shots: 1.5633,
+      motion: 3.4267,
+      timefx: 1.6459,
+      look: 5.3005,
+      text: 10.5403,
+      audio: 0.0542,
+      build: 0.0113,
+      total: 44.9336
+    },
+    config: {
+      analysis_long_side: 320,
+      target_fps: null,
+      max_fps: 60.0,
+      max_duration: 300.0,
+      audio_sr: 22050,
+      beat_tolerance: 0.07,
+      ocr: true,
+      text_fps: 3.0,
+      text_long_side: 720,
+      enabled: {text: true, audio: true},
+      params: {}
+    }
+  }
+}

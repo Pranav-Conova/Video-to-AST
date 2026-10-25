@@ -31,8 +31,11 @@ Known limits:
   tuned for precision over recall.
 - Long dissolves are found, but their start is placed late.
 - A dissolve into a title card is reported as a cut.
-- Thresholds were tuned on one real trailer plus synthetic edits. Real
-  TikTok/Reels footage hasn't been benchmarked yet.
+- Thresholds were tuned on one real trailer plus synthetic edits. On 10 viral car
+  edits from YouTube ([examples/youtube-car-edits](examples/youtube-car-edits)),
+  spot checks found three issues. Static-noise glitch transitions are split into
+  many tiny shots. The beat tracker can lock onto the off-beats. Text in the
+  footage, such as licence plates, can be reported as an overlay.
 
 ## What it extracts
 

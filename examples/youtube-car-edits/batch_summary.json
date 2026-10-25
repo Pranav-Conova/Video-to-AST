@@ -1,0 +1,516 @@
+{
+  "n_videos": 10,
+  "stats": {
+    "duration": {
+      "mean": 25.8721,
+      "median": 22.4,
+      "min": 11.933,
+      "max": 48.083,
+      "n": 10
+    },
+    "bpm": {
+      "mean": 120.477,
+      "median": 119.89,
+      "min": 84.6,
+      "max": 181.9,
+      "n": 10
+    },
+    "n_shots": {
+      "mean": 21.7,
+      "median": 17.5,
+      "min": 11,
+      "max": 50,
+      "n": 10
+    },
+    "mean_shot_duration": {
+      "mean": 1.4641,
+      "median": 1.4364,
+      "min": 0.3328,
+      "max": 2.9182,
+      "n": 10
+    },
+    "median_shot_duration": {
+      "mean": 0.8911,
+      "median": 0.7667,
+      "min": 0.2689,
+      "max": 2.3,
+      "n": 10
+    },
+    "cuts_per_minute": {
+      "mean": 56.5982,
+      "median": 39.3108,
+      "min": 18.6916,
+      "max": 176.697,
+      "n": 10
+    },
+    "cut_on_beat_ratio": {
+      "mean": 0.4905,
+      "median": 0.3893,
+      "min": 0.05,
+      "max": 0.9714,
+      "n": 10
+    },
+    "hook_duration": {
+      "mean": 0.7796,
+      "median": 0.0,
+      "min": 0.0,
+      "max": 2.9667,
+      "n": 10
+    },
+    "first_cut_time": {
+      "mean": 5.9754,
+      "median": 4.5583,
+      "min": 0.5378,
+      "max": 19.45,
+      "n": 10
+    },
+    "text_coverage": {
+      "mean": 0.2578,
+      "median": 0.1577,
+      "min": 0.0,
+      "max": 0.6566,
+      "n": 10
+    },
+    "n_transitions": {
+      "mean": 7.6,
+      "median": 4.5,
+      "min": 0,
+      "max": 27,
+      "n": 10
+    }
+  },
+  "patterns": {
+    "recurring_source": {
+      "videos": 9,
+      "fraction": 0.9,
+      "mean_support": 0.427,
+      "phrase": "cut back to the same clip more than once"
+    },
+    "pacing_accelerates_at_drop": {
+      "videos": 8,
+      "fraction": 0.8,
+      "mean_support": 1.0,
+      "phrase": "cut faster once the drop hits"
+    },
+    "flash_on_cut": {
+      "videos": 5,
+      "fraction": 0.5,
+      "mean_support": 0.2982,
+      "phrase": "punctuate cuts with flashes"
+    },
+    "cut_on_beat": {
+      "videos": 4,
+      "fraction": 0.4,
+      "mean_support": 0.844,
+      "phrase": "cut on the beat"
+    },
+    "effect_on_beat:rotate": {
+      "videos": 4,
+      "fraction": 0.4,
+      "mean_support": 0.7335,
+      "phrase": "put rotate effects on beats"
+    },
+    "hook_text": {
+      "videos": 4,
+      "fraction": 0.4,
+      "mean_support": 1.0,
+      "phrase": "open with on-screen hook text in the first second"
+    },
+    "effect_on_drop:zoom": {
+      "videos": 3,
+      "fraction": 0.3,
+      "mean_support": 0.889,
+      "phrase": "hit a zoom on the drop"
+    },
+    "cut_every_n_beats[n=2]": {
+      "videos": 2,
+      "fraction": 0.2,
+      "mean_support": 0.646,
+      "phrase": "cut every 2 beats in at least one section"
+    },
+    "effect_on_beat:blur": {
+      "videos": 2,
+      "fraction": 0.2,
+      "mean_support": 0.7835,
+      "phrase": "put blur effects on beats"
+    },
+    "effect_on_beat:zoom": {
+      "videos": 2,
+      "fraction": 0.2,
+      "mean_support": 0.75,
+      "phrase": "put zoom effects on beats"
+    },
+    "speed_ramp_on_beat": {
+      "videos": 2,
+      "fraction": 0.2,
+      "mean_support": 0.896,
+      "phrase": "land speed ramps on beats"
+    },
+    "cut_every_n_beats[n=1]": {
+      "videos": 1,
+      "fraction": 0.1,
+      "mean_support": 0.676,
+      "phrase": "cut every beat in at least one section"
+    },
+    "cut_every_n_beats[n=8]": {
+      "videos": 1,
+      "fraction": 0.1,
+      "mean_support": 1.0,
+      "phrase": "cut every 8 beats in at least one section"
+    },
+    "effect_on_beat:flash": {
+      "videos": 1,
+      "fraction": 0.1,
+      "mean_support": 1.0,
+      "phrase": "put flash effects on beats"
+    },
+    "effect_on_beat:freeze": {
+      "videos": 1,
+      "fraction": 0.1,
+      "mean_support": 1.0,
+      "phrase": "put freeze effects on beats"
+    },
+    "effect_on_drop:fade_black": {
+      "videos": 1,
+      "fraction": 0.1,
+      "mean_support": 1.0,
+      "phrase": "hit a fade black on the drop"
+    },
+    "effect_on_drop:flash": {
+      "videos": 1,
+      "fraction": 0.1,
+      "mean_support": 1.0,
+      "phrase": "hit a flash on the drop"
+    },
+    "effect_on_drop:rotate": {
+      "videos": 1,
+      "fraction": 0.1,
+      "mean_support": 1.0,
+      "phrase": "hit a rotate on the drop"
+    },
+    "effect_on_drop:speed": {
+      "videos": 1,
+      "fraction": 0.1,
+      "mean_support": 1.0,
+      "phrase": "hit a speed on the drop"
+    }
+  },
+  "effects": {
+    "pan": {
+      "videos": 10,
+      "fraction": 1.0,
+      "mean_per_video": 7.3
+    },
+    "rotate": {
+      "videos": 10,
+      "fraction": 1.0,
+      "mean_per_video": 3.9
+    },
+    "zoom": {
+      "videos": 10,
+      "fraction": 1.0,
+      "mean_per_video": 14.2
+    },
+    "blur": {
+      "videos": 7,
+      "fraction": 0.7,
+      "mean_per_video": 2.9
+    },
+    "flash": {
+      "videos": 7,
+      "fraction": 0.7,
+      "mean_per_video": 5.3
+    },
+    "speed": {
+      "videos": 7,
+      "fraction": 0.7,
+      "mean_per_video": 4.0
+    },
+    "freeze": {
+      "videos": 5,
+      "fraction": 0.5,
+      "mean_per_video": 1.1
+    },
+    "rgb_split": {
+      "videos": 2,
+      "fraction": 0.2,
+      "mean_per_video": 0.3
+    }
+  },
+  "transitions": {
+    "fade_black": {
+      "videos": 7,
+      "fraction": 0.7,
+      "mean_per_video": 1.4
+    },
+    "flash": {
+      "videos": 5,
+      "fraction": 0.5,
+      "mean_per_video": 3.9
+    },
+    "whip": {
+      "videos": 5,
+      "fraction": 0.5,
+      "mean_per_video": 1.6
+    },
+    "dissolve": {
+      "videos": 4,
+      "fraction": 0.4,
+      "mean_per_video": 0.4
+    },
+    "zoom": {
+      "videos": 2,
+      "fraction": 0.2,
+      "mean_per_video": 0.3
+    }
+  },
+  "structures": {
+    "build > drop": 4,
+    "hook > build > drop": 2,
+    "build > drop > break > drop": 2,
+    "hook > build > drop > outro": 1,
+    "hook > drop": 1
+  },
+  "common": [
+    "9/10 videos cut back to the same clip more than once.",
+    "8/10 videos cut faster once the drop hits.",
+    "5/10 videos punctuate cuts with flashes.",
+    "10/10 videos use pan effects (7.3 per video on average).",
+    "10/10 videos use rotate effects (3.9 per video on average).",
+    "10/10 videos use zoom effects (14.2 per video on average).",
+    "7/10 videos use blur effects (2.9 per video on average).",
+    "7/10 videos use flash effects (5.3 per video on average).",
+    "7/10 videos use speed effects (4.0 per video on average).",
+    "5/10 videos use freeze effects (1.1 per video on average).",
+    "7/10 videos use fade black transitions.",
+    "5/10 videos use flash transitions.",
+    "5/10 videos use whip transitions.",
+    "Median pace: 39 cuts per minute (mean shot length 1.44 s)."
+  ],
+  "videos": [
+    {
+      "source": "https://www.youtube.com/shorts/0tQf0jCw9ZM",
+      "duration": 21.2,
+      "bpm": 122.01,
+      "structure": "build > drop",
+      "patterns": [
+        "cut_every_n_beats[n=1]",
+        "cut_every_n_beats[n=8]",
+        "cut_on_beat",
+        "effect_on_beat:blur",
+        "effect_on_beat:zoom",
+        "effect_on_drop:flash",
+        "effect_on_drop:rotate",
+        "effect_on_drop:zoom",
+        "flash_on_cut",
+        "pacing_accelerates_at_drop",
+        "recurring_source",
+        "speed_ramp_on_beat"
+      ],
+      "n_shots": 36,
+      "mean_shot_duration": 0.5888888888888889,
+      "median_shot_duration": 0.46666666666666856,
+      "cuts_per_minute": 99.05660377358491,
+      "cut_on_beat_ratio": 0.9714285714285714,
+      "hook_duration": 0.0,
+      "first_cut_time": 4.416666666666667,
+      "text_coverage": 0.0,
+      "n_transitions": 27
+    },
+    {
+      "source": "https://www.youtube.com/shorts/CFG8DtIt7X0",
+      "duration": 41.833,
+      "bpm": 117.77,
+      "structure": "hook > build > drop",
+      "patterns": [
+        "cut_every_n_beats[n=2]",
+        "effect_on_drop:zoom",
+        "hook_text",
+        "pacing_accelerates_at_drop",
+        "recurring_source"
+      ],
+      "n_shots": 21,
+      "mean_shot_duration": 1.992063492063492,
+      "median_shot_duration": 1.1666666666666714,
+      "cuts_per_minute": 28.685258964143426,
+      "cut_on_beat_ratio": 0.05,
+      "hook_duration": 2.966666666666667,
+      "first_cut_time": 2.966666666666667,
+      "text_coverage": 0.5840637450199203,
+      "n_transitions": 1
+    },
+    {
+      "source": "https://www.youtube.com/shorts/kDdC6N4Q8O8",
+      "duration": 32.1,
+      "bpm": 95.55,
+      "structure": "hook > build > drop > outro",
+      "patterns": [
+        "effect_on_beat:flash"
+      ],
+      "n_shots": 11,
+      "mean_shot_duration": 2.9181818181818175,
+      "median_shot_duration": 2.3,
+      "cuts_per_minute": 18.69158878504673,
+      "cut_on_beat_ratio": 0.1,
+      "hook_duration": 2.3,
+      "first_cut_time": 2.3,
+      "text_coverage": 0.0,
+      "n_transitions": 2
+    },
+    {
+      "source": "https://www.youtube.com/shorts/NRBvrNAw2uQ",
+      "duration": 48.083,
+      "bpm": 84.6,
+      "structure": "build > drop > break > drop",
+      "patterns": [
+        "cut_every_n_beats[n=2]",
+        "effect_on_beat:blur",
+        "effect_on_beat:rotate",
+        "flash_on_cut",
+        "hook_text",
+        "pacing_accelerates_at_drop",
+        "recurring_source"
+      ],
+      "n_shots": 28,
+      "mean_shot_duration": 1.7172619047619049,
+      "median_shot_duration": 1.0083333333333329,
+      "cuts_per_minute": 33.69150779896014,
+      "cut_on_beat_ratio": 0.37037037037037035,
+      "hook_duration": 0.0,
+      "first_cut_time": 19.45,
+      "text_coverage": 0.6093587521663779,
+      "n_transitions": 11
+    },
+    {
+      "source": "https://www.youtube.com/shorts/p-X42xUa2wQ",
+      "duration": 16.639,
+      "bpm": 132.76,
+      "structure": "hook > drop",
+      "patterns": [
+        "effect_on_beat:rotate",
+        "flash_on_cut",
+        "recurring_source"
+      ],
+      "n_shots": 50,
+      "mean_shot_duration": 0.3327731092436974,
+      "median_shot_duration": 0.26890756302520913,
+      "cuts_per_minute": 176.6969696969697,
+      "cut_on_beat_ratio": 0.40816326530612246,
+      "hook_duration": 1.5294117647058822,
+      "first_cut_time": 0.5378151260504201,
+      "text_coverage": 0.050505050505050456,
+      "n_transitions": 7
+    },
+    {
+      "source": "https://www.youtube.com/shorts/tUjIwYeVlQc",
+      "duration": 25.533,
+      "bpm": 127.17,
+      "structure": "build > drop",
+      "patterns": [
+        "effect_on_drop:fade_black",
+        "effect_on_drop:speed",
+        "flash_on_cut",
+        "hook_text",
+        "pacing_accelerates_at_drop",
+        "recurring_source"
+      ],
+      "n_shots": 16,
+      "mean_shot_duration": 1.5958333333333334,
+      "median_shot_duration": 0.8666666666666671,
+      "cuts_per_minute": 35.24804177545692,
+      "cut_on_beat_ratio": 0.26666666666666666,
+      "hook_duration": 0.0,
+      "first_cut_time": 12.016666666666667,
+      "text_coverage": 0.30874673629242816,
+      "n_transitions": 10
+    },
+    {
+      "source": "https://www.youtube.com/shorts/X0ZPhwJwtnw",
+      "duration": 16.6,
+      "bpm": 91.88,
+      "structure": "hook > build > drop",
+      "patterns": [
+        "effect_on_drop:zoom",
+        "hook_text",
+        "pacing_accelerates_at_drop",
+        "recurring_source"
+      ],
+      "n_shots": 13,
+      "mean_shot_duration": 1.276923076923077,
+      "median_shot_duration": 0.6333333333333329,
+      "cuts_per_minute": 43.373493975903614,
+      "cut_on_beat_ratio": 0.3333333333333333,
+      "hook_duration": 1.0,
+      "first_cut_time": 1.0,
+      "text_coverage": 0.6566265060240963,
+      "n_transitions": 2
+    },
+    {
+      "source": "https://www.youtube.com/shorts/XxFyqmOzRNQ",
+      "duration": 22.167,
+      "bpm": 181.9,
+      "structure": "build > drop > break > drop",
+      "patterns": [
+        "cut_on_beat",
+        "effect_on_beat:rotate",
+        "flash_on_cut",
+        "pacing_accelerates_at_drop",
+        "recurring_source"
+      ],
+      "n_shots": 19,
+      "mean_shot_duration": 1.1666666666666667,
+      "median_shot_duration": 0.6333333333333346,
+      "cuts_per_minute": 48.721804511278194,
+      "cut_on_beat_ratio": 0.7777777777777778,
+      "hook_duration": 0.0,
+      "first_cut_time": 5.966666666666667,
+      "text_coverage": 0.15789473684210528,
+      "n_transitions": 14
+    },
+    {
+      "source": "https://www.youtube.com/shorts/xyxBs_QDHV4",
+      "duration": 11.933,
+      "bpm": 115.18,
+      "structure": "build > drop",
+      "patterns": [
+        "cut_on_beat",
+        "pacing_accelerates_at_drop",
+        "recurring_source"
+      ],
+      "n_shots": 12,
+      "mean_shot_duration": 0.9944444444444445,
+      "median_shot_duration": 0.6666666666666661,
+      "cuts_per_minute": 55.3072625698324,
+      "cut_on_beat_ratio": 0.7272727272727273,
+      "hook_duration": 0.0,
+      "first_cut_time": 4.7,
+      "text_coverage": 0.05307262569832413,
+      "n_transitions": 2
+    },
+    {
+      "source": "https://www.youtube.com/shorts/YFNSDdrElfc",
+      "duration": 22.633,
+      "bpm": 135.95,
+      "structure": "build > drop",
+      "patterns": [
+        "cut_on_beat",
+        "effect_on_beat:freeze",
+        "effect_on_beat:rotate",
+        "effect_on_beat:zoom",
+        "pacing_accelerates_at_drop",
+        "recurring_source",
+        "speed_ramp_on_beat"
+      ],
+      "n_shots": 11,
+      "mean_shot_duration": 2.0575757575757576,
+      "median_shot_duration": 0.9000000000000004,
+      "cuts_per_minute": 26.50957290132548,
+      "cut_on_beat_ratio": 0.9,
+      "hook_duration": 0.0,
+      "first_cut_time": 6.4,
+      "text_coverage": 0.15758468335787923,
+      "n_transitions": 0
+    }
+  ],
+  "failed": []
+}
