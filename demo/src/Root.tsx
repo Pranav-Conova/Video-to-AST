@@ -43,7 +43,7 @@ const calculateMetadata: CalculateMetadataFunction<ReportDemoProps> = async ({
 export const RemotionRoot: React.FC = () => {
   return (
     <>
-      {/* docs/demo.gif, at the top of the README */}
+      {/* docs/demo.gif, in the README's film trailer example */}
       <Composition
         id="Dune"
         component={ReportDemo}
@@ -64,7 +64,7 @@ export const RemotionRoot: React.FC = () => {
         }}
         calculateMetadata={calculateMetadata}
       />
-      {/* docs/car-edit-demo.gif, in the README's car edits example */}
+      {/* docs/car-edit-demo.gif, at the top of the README */}
       <Composition
         id="CarEdit"
         component={ReportDemo}

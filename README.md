@@ -1,6 +1,6 @@
-![editast on the Dune trailer: the video plays on the left with its Edit AST scrolling underneath, and the HTML timeline report on the right follows a playhead through cuts, flashes, fades, zooms, pans and rotations](docs/demo.gif)
+![editast on a BMW M4 car edit: the video plays on the left with its Edit AST underneath, and the HTML report on the right shows the beat grid, cuts landing on beats, speed ramps, zooms, pans and the end-card text](docs/car-edit-demo.gif)
 
-<sub>24 s of the Dune trailer (© Warner Bros. Pictures & Legendary) next to its Edit AST and HTML report, in sync. Rendered with Remotion; see [demo/](demo).</sub>
+<sub>A [BMW M4 edit by Revix Edits](https://www.youtube.com/shorts/YFNSDdrElfc) (1.1M views): 136 BPM, 90% of cuts on the beat, and cutting 5.7× faster after the drop ([its EditScript](examples/youtube-car-edits/youtube_YFNSDdrElfc.edit)). Rendered with Remotion; see [demo/](demo).</sub>
 
 # Video-to-AST
 
@@ -12,7 +12,7 @@ with your own footage and music.
 
 ## Status
 
-Every module is implemented and tested (382 tests, one of them opt-in). Measured accuracy:
+Every module is implemented and tested (385 tests, one of them opt-in). Measured accuracy:
 
 | Benchmark | Overall | Cuts F1 | Transitions | Effects F1 | Beats F | Text F1 | B&W |
 |---|---|---|---|---|---|---|---|
@@ -43,10 +43,6 @@ Known limits:
 
 ## Example: 10 viral car edits
 
-![editast on a BMW M4 car edit: the video plays on the left with its Edit AST underneath, and the HTML report on the right shows the beat grid, cuts landing on beats, speed ramps, zooms, pans and the end-card text](docs/car-edit-demo.gif)
-
-<sub>A [BMW M4 edit by Revix Edits](https://www.youtube.com/shorts/YFNSDdrElfc) (1.1M views): 136 BPM, 90% of cuts on the beat, and cutting 5.7× faster after the drop ([its EditScript](examples/youtube-car-edits/youtube_YFNSDdrElfc.edit)). Rendered with Remotion; see [demo/](demo).</sub>
-
 [examples/youtube-car-edits](examples/youtube-car-edits) holds the ASTs of the 10
 most-viewed car edits from a set of YouTube Shorts searches (1.1M–9.4M views),
 produced with one command:
@@ -64,6 +60,12 @@ What they share:
   every video, and speed ramps and flash frames in 7 of 10.
 
 The folder's README has the per-video table and frame-checked accuracy notes.
+
+## Example: a film trailer
+
+![editast on the Dune trailer: the video plays on the left with its Edit AST scrolling underneath, and the HTML timeline report on the right follows a playhead through cuts, flashes, fades, zooms, pans and rotations](docs/demo.gif)
+
+<sub>24 s of the Dune trailer (© Warner Bros. Pictures & Legendary) next to its Edit AST and HTML report, in sync. Rendered with Remotion; see [demo/](demo).</sub>
 
 ## What it extracts
 
