@@ -3,7 +3,7 @@
 The demo composition plays the video next to the report and the EditScript, so it
 needs all of them. See README.md for how docs/demo.gif was made from the Dune trailer.
 
-    python prepare.py dune_trailer.mp4 --url https://www.youtube.com/watch?v=n9xhJrPXop4
+    python prepare.py https://www.youtube.com/watch?v=n9xhJrPXop4 --name dune_trailer
 """
 
 from __future__ import annotations

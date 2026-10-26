@@ -112,6 +112,9 @@ python -m venv .venv
 pip install -e ".[ocr,fetch,dev]"
 ```
 
+Downloading from YouTube also needs [Deno](https://deno.com/) or [Node.js](https://nodejs.org/)
+on the PATH: yt-dlp uses it to solve YouTube's signature challenges.
+
 ## Usage
 
 ```bash

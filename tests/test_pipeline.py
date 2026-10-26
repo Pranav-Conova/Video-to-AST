@@ -24,7 +24,7 @@ from editast.analyzers.types import (
 from editast.ast.nodes import Edit, Look, MotionSummary, Music, TextOverlay, Zoom
 from editast.cli import main
 from editast.context import AnalysisConfig
-from editast.fetch import FetchError, download, is_url
+from editast.fetch import FetchError, download, is_url, is_youtube
 from editast.media import VideoWriter, write_wav
 from editast.pipeline import STAGES, analyze, signals_for_report, summarize_edits
 from editast.testing import synth
@@ -248,6 +248,67 @@ def test_download_without_yt_dlp_is_a_clear_error(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "yt_dlp", None)
     with pytest.raises(FetchError, match="yt-dlp"):
         download("https://example.com/v/1", tmp_path)
+
+
+def test_is_youtube():
+    for url in ("https://www.youtube.com/watch?v=x", "https://m.youtube.com/shorts/x", "http://youtu.be/x",
+                "https://www.youtube-nocookie.com/embed/x", " https://YouTube.com/watch?v=x"):
+        assert is_youtube(url), url
+    for url in ("https://www.tiktok.com/@u/video/1", "https://notyoutube.com/x", "https://youtube.com.evil.io/x"):
+        assert not is_youtube(url), url
+
+
+def _fake_yt_dlp(monkeypatch, tmp_path, fail_unless=None):
+    """Install a fake yt_dlp whose downloads fail unless ``fail_unless(options)``; returns the options of each call."""
+    calls: list[dict] = []
+
+    class YoutubeDL:
+        def __init__(self, options):
+            self.options = options
+            calls.append(options)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def extract_info(self, url, download):
+            if fail_unless is None or not fail_unless(self.options):
+                raise RuntimeError("ERROR: Sign in to confirm you're not a bot")
+            path = tmp_path / "youtube_x.mp4"
+            path.write_bytes(b"mp4")
+            return {"requested_downloads": [{"filepath": str(path)}]}
+
+    _fake_module(monkeypatch, "yt_dlp", YoutubeDL=YoutubeDL)
+    return calls
+
+
+def _clients(options):
+    return options.get("extractor_args", {}).get("youtube", {}).get("player_client")
+
+
+def test_youtube_download_retries_with_the_embedded_client(monkeypatch, tmp_path):
+    monkeypatch.setattr("editast.fetch.shutil.which", lambda name: "/bin/node" if name == "node" else None)
+    calls = _fake_yt_dlp(monkeypatch, tmp_path, fail_unless=lambda o: _clients(o) == ["web_embedded"])
+    path = download("https://www.youtube.com/watch?v=x", tmp_path)
+    assert path == tmp_path / "youtube_x.mp4"
+    assert [_clients(o) for o in calls] == [None, ["web_embedded"]]
+    assert all(o["js_runtimes"] == {"node": {}} for o in calls)
+
+
+def test_failed_download_reports_both_attempts_and_is_retried_only_on_youtube(monkeypatch, tmp_path):
+    monkeypatch.setattr("editast.fetch.shutil.which", lambda name: None)
+    calls = _fake_yt_dlp(monkeypatch, tmp_path)
+    with pytest.raises(FetchError) as err:
+        download("https://youtu.be/x", tmp_path)
+    message = str(err.value)
+    assert message.count("not a bot") == 2 and "embedded-player client" in message
+    assert "install Deno or Node.js" in message and "js_runtimes" not in calls[0]
+    calls.clear()
+    with pytest.raises(FetchError, match="not a bot"):
+        download("https://www.tiktok.com/@u/video/1", tmp_path)
+    assert len(calls) == 1
 
 
 # --------------------------------------------------------------------------- cli
