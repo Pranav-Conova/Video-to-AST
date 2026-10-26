@@ -1,3 +1,7 @@
+![editast on the Sintel trailer: the video plays on the left with its Edit AST scrolling underneath, and the HTML timeline report on the right follows a playhead through cuts, fades, zooms, pans, rotations, a slow-motion shot and a dissolve](docs/demo.gif)
+
+<sub>The Sintel trailer (© Blender Foundation, CC-BY 3.0) next to its Edit AST and HTML report, in sync. Rendered with Remotion; see [demo/](demo).</sub>
+
 # Video-to-AST
 
 Reverse-engineer viral short-form video edits (TikTok / Reels / Shorts, beat-synced
