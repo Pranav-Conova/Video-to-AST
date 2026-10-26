@@ -9,7 +9,10 @@ const median = (xs: number[]) => {
   return s.length ? s[Math.floor(s.length / 2)] : 0;
 };
 
-// Loads the Edit AST and the EditScript, and sets the frame rate and length from them.
+// The GIFs are 12 fps, so 24 fps is plenty whatever the video's own rate; <Video> samples it by time.
+const FPS = 24;
+
+// Loads the Edit AST and the EditScript, and sets the length from the shown part of the video.
 const calculateMetadata: CalculateMetadataFunction<ReportDemoProps> = async ({
   props,
   abortSignal,
@@ -22,10 +25,8 @@ const calculateMetadata: CalculateMetadataFunction<ReportDemoProps> = async ({
     (sec.items ?? []).filter((it) => it.type === "shot"),
   );
   const layouts = shots.map((s) => s.layout ?? {});
-  const fps: number = edit.media.fps;
   return {
-    fps,
-    durationInFrames: Math.round((props.end - props.start) * fps),
+    durationInFrames: Math.round((props.end - props.start) * FPS),
     props: {
       ...props,
       scriptText: script,
@@ -41,25 +42,50 @@ const calculateMetadata: CalculateMetadataFunction<ReportDemoProps> = async ({
 
 export const RemotionRoot: React.FC = () => {
   return (
-    <Composition
-      id="ReportDemo"
-      component={ReportDemo}
-      durationInFrames={580}
-      fps={24}
-      width={1280}
-      height={800}
-      defaultProps={{
-        video: "dune_trailer.mp4",
-        report: "dune_trailer.report.html",
-        edit: "dune_trailer.edit.json",
-        script: "dune_trailer.compact.edit",
-        command: "editast analyze dune_trailer.mp4",
-        credit: "Dune trailer · © Warner Bros. Pictures & Legendary",
-        lastLane: "energy",
-        start: 72.7,
-        end: 96.9,
-      }}
-      calculateMetadata={calculateMetadata}
-    />
+    <>
+      {/* docs/demo.gif, at the top of the README */}
+      <Composition
+        id="Dune"
+        component={ReportDemo}
+        durationInFrames={581}
+        fps={FPS}
+        width={1280}
+        height={800}
+        defaultProps={{
+          video: "dune_trailer.mp4",
+          report: "dune_trailer.report.html",
+          edit: "dune_trailer.edit.json",
+          script: "dune_trailer.compact.edit",
+          command: "editast analyze dune_trailer.mp4",
+          credit: "Dune trailer · © Warner Bros. Pictures & Legendary",
+          lastLane: "energy",
+          start: 72.7,
+          end: 96.9,
+        }}
+        calculateMetadata={calculateMetadata}
+      />
+      {/* docs/car-edit-demo.gif, in the README's car edits example */}
+      <Composition
+        id="CarEdit"
+        component={ReportDemo}
+        durationInFrames={542}
+        fps={FPS}
+        width={1280}
+        height={800}
+        defaultProps={{
+          video: "car_edit.mp4",
+          report: "car_edit.report.html",
+          edit: "car_edit.edit.json",
+          script: "car_edit.compact.edit",
+          command: "editast analyze youtube.com/shorts/YFNSDdrElfc",
+          credit: "BMW M4 edit by Revix Edits",
+          lastLane: "pacing",
+          start: 0,
+          end: 22.6,
+          videoWidth: 500, // full-frame 16:9 footage in motion is costly in a GIF
+        }}
+        calculateMetadata={calculateMetadata}
+      />
+    </>
   );
 };

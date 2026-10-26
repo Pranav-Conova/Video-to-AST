@@ -14,6 +14,7 @@ export type ReportDemoProps = {
   credit: string; // shown above the video
   start: number; // seconds of the source shown
   end: number;
+  videoWidth?: number; // of the left column; the report gets the rest
   // Filled in by calculateMetadata.
   scriptText?: string;
   aspect?: number;
@@ -21,7 +22,6 @@ export type ReportDemoProps = {
 };
 
 const PAD = 28;
-const LEFT_W = 580;
 const LABEL_H = 36;
 
 const Label: React.FC<{
@@ -97,22 +97,23 @@ export const ReportDemo: React.FC<ReportDemoProps> = (props) => {
 
   const aspect = props.aspect ?? 16 / 9;
   const [lbTop, lbBottom] = props.letterbox ?? [0, 0];
-  const fullH = LEFT_W / aspect; // the whole frame, bars included
+  const leftW = props.videoWidth ?? 580;
+  const fullH = leftW / aspect; // the whole frame, bars included
   const videoH = Math.round(fullH * (1 - lbTop - lbBottom));
   const videoTop = PAD + LABEL_H;
   const scriptTop = videoTop + videoH + 20 + LABEL_H;
-  const rightX = PAD + LEFT_W + PAD;
+  const rightX = PAD + leftW + PAD;
   const rightW = width - rightX - PAD;
 
   return (
     <AbsoluteFill style={{ backgroundColor: theme.page, color: theme.ink, fontFamily: theme.ui }}>
-      <Label x={PAD} y={PAD} w={LEFT_W} title="Source" detail={props.credit} right={timecode(t)} />
+      <Label x={PAD} y={PAD} w={leftW} title="Source" detail={props.credit} right={timecode(t)} />
       <div
         style={{
           position: "absolute",
           left: PAD,
           top: videoTop,
-          width: LEFT_W,
+          width: leftW,
           height: videoH,
           overflow: "hidden",
           borderRadius: 10,
@@ -123,15 +124,15 @@ export const ReportDemo: React.FC<ReportDemoProps> = (props) => {
           src={staticFile(props.video)}
           muted
           trimBefore={Math.round(props.start * fps)}
-          style={{ position: "absolute", left: 0, top: -fullH * lbTop, width: LEFT_W, height: fullH }}
+          style={{ position: "absolute", left: 0, top: -fullH * lbTop, width: leftW, height: fullH }}
         />
       </div>
 
-      <Label x={PAD} y={scriptTop - LABEL_H} w={LEFT_W} title="Edit AST" detail="EditScript at the playhead" />
+      <Label x={PAD} y={scriptTop - LABEL_H} w={leftW} title="Edit AST" detail="EditScript at the playhead" />
       <EditScriptPanel
         text={props.scriptText ?? ""}
         t={t}
-        style={{ left: PAD, top: scriptTop, width: LEFT_W, height: height - PAD - scriptTop }}
+        style={{ left: PAD, top: scriptTop, width: leftW, height: height - PAD - scriptTop }}
       />
 
       <Label x={rightX} y={PAD} w={rightW} title="HTML report" detail={props.command} mono />

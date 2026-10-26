@@ -26,7 +26,8 @@
   },
   "scripts": {
     "dev": "remotion studio",
-    "frames": "remotion render ReportDemo out/frames --sequence --image-format=png --scale=0.6875",
+    "frames": "remotion render Dune out/frames --sequence --image-format=png --scale=0.6875",
+    "frames:car": "remotion render CarEdit out/car-frames --sequence --image-format=png --scale=0.6875",
     "build": "remotion bundle",
     "upgrade": "remotion upgrade",
     "lint": "eslint src && tsc"

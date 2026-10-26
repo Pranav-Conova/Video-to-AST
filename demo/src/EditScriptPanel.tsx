@@ -10,13 +10,15 @@ type Line = { text: string; kind: string; a: number | null; b: number | null };
 
 const SPAN = /(\d+(?:\.\d+)?)s\.\.(\d+(?:\.\d+)?)s/;
 
-// The timeline part of a compact EditScript: section blocks, without the analyzer's `params {...}`.
+// The timeline part of a compact EditScript (sections, then text overlays), without the
+// analyzer's `params {...}`.
 const parse = (src: string): Line[] => {
   const out: Line[] = [];
   let inside = false;
   for (const raw of src.split(/\r?\n/)) {
     if (/^ {2}section /.test(raw)) inside = true;
-    else if (inside && /^ {2}\S/.test(raw) && !/^ {2}\}/.test(raw)) break; // overlays, patterns, ...
+    // After the sections, keep the text overlays and stop at the patterns.
+    else if (inside && /^ {2}[^\s}]/.test(raw) && !/^ {2}text /.test(raw)) break;
     if (!inside) continue;
     const text = raw.slice(2).replace(/ params \{.*\}(?= \{$|$)/, "");
     const m = SPAN.exec(text);

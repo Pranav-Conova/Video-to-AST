@@ -43,6 +43,10 @@ Known limits:
 
 ## Example: 10 viral car edits
 
+![editast on a BMW M4 car edit: the video plays on the left with its Edit AST underneath, and the HTML report on the right shows the beat grid, cuts landing on beats, speed ramps, zooms, pans and the end-card text](docs/car-edit-demo.gif)
+
+<sub>A [BMW M4 edit by Revix Edits](https://www.youtube.com/shorts/YFNSDdrElfc) (1.1M views): 136 BPM, 90% of cuts on the beat, and cutting 5.7× faster after the drop ([its EditScript](examples/youtube-car-edits/youtube_YFNSDdrElfc.edit)). Rendered with Remotion; see [demo/](demo).</sub>
+
 [examples/youtube-car-edits](examples/youtube-car-edits) holds the ASTs of the 10
 most-viewed car edits from a set of YouTube Shorts searches (1.1M–9.4M views),
 produced with one command:
