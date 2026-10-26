@@ -37,6 +37,26 @@ Known limits:
   many tiny shots. The beat tracker can lock onto the off-beats. Text in the
   footage, such as licence plates, can be reported as an overlay.
 
+## Example: 10 viral car edits
+
+[examples/youtube-car-edits](examples/youtube-car-edits) holds the ASTs of the 10
+most-viewed car edits from a set of YouTube Shorts searches (1.1M–9.4M views),
+produced with one command:
+
+```bash
+editast batch https://www.youtube.com/shorts/kDdC6N4Q8O8 https://www.youtube.com/shorts/NRBvrNAw2uQ ... -o out/yt
+```
+
+What they share:
+- **Build, then drop:** the drop comes 35–61% of the way in, and the median pace
+  goes from about 9 cuts/min before it to 61 after it.
+- **A long opening:** 6 of 10 hold the first shot for 4 s or more.
+- **Cuts on the beat:** 73–97% of cuts land on a beat where the beat grid is reliable.
+- **Constant camera motion:** zooms (about 14 per video), pans and rotations in
+  every video, and speed ramps and flash frames in 7 of 10.
+
+The folder's README has the per-video table and frame-checked accuracy notes.
+
 ## What it extracts
 
 ```
