@@ -18,8 +18,12 @@ const calculateMetadata: CalculateMetadataFunction<ReportDemoProps> = async ({
   abortSignal,
 }) => {
   const [edit, script] = await Promise.all([
-    fetch(staticFile(props.edit), { signal: abortSignal }).then((r) => r.json()),
-    fetch(staticFile(props.script), { signal: abortSignal }).then((r) => r.text()),
+    fetch(staticFile(props.edit), { signal: abortSignal }).then((r) =>
+      r.json(),
+    ),
+    fetch(staticFile(props.script), { signal: abortSignal }).then((r) =>
+      r.text(),
+    ),
   ]);
   const shots = (edit.timeline.sections as Node[]).flatMap((sec) =>
     (sec.items ?? []).filter((it) => it.type === "shot"),
@@ -68,7 +72,7 @@ export const RemotionRoot: React.FC = () => {
       <Composition
         id="CarEdit"
         component={ReportDemo}
-        durationInFrames={542}
+        durationInFrames={346}
         fps={FPS}
         width={1280}
         height={800}
@@ -77,12 +81,11 @@ export const RemotionRoot: React.FC = () => {
           report: "car_edit.report.html",
           edit: "car_edit.edit.json",
           script: "car_edit.compact.edit",
-          command: "editast analyze youtube.com/shorts/YFNSDdrElfc",
-          credit: "BMW M4 edit by Revix Edits",
-          lastLane: "pacing",
+          command: "editast analyze youtube.com/shorts/N-va3tJzyT0",
+          credit: "by urboyliam",
+          lastLane: "beats",
           start: 0,
-          end: 22.6,
-          videoWidth: 500, // full-frame 16:9 footage in motion is costly in a GIF
+          end: 14.4,
         }}
         calculateMetadata={calculateMetadata}
       />

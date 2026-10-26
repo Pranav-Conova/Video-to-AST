@@ -1,0 +1,3332 @@
+{
+  "id": "edit",
+  "confidence": 1.0,
+  "type": "edit",
+  "schema_version": "1.0",
+  "media": {
+    "source": "https://www.youtube.com/shorts/N-va3tJzyT0",
+    "duration": 14.4,
+    "fps": 30.0,
+    "width": 500,
+    "height": 1080,
+    "n_frames": 432,
+    "analysis_fps": 30.0,
+    "has_audio": true,
+    "aspect": "25:54"
+  },
+  "music": {
+    "id": "music",
+    "confidence": 0.1507,
+    "type": "music",
+    "bpm": 116.0768,
+    "beat_offset": 0.0522,
+    "meter": 4,
+    "beats": [
+      0.0522,
+      0.6908,
+      1.2307,
+      1.7415,
+      2.2581,
+      2.798,
+      3.2566,
+      3.7965,
+      4.2899,
+      4.8414,
+      5.358,
+      5.8746,
+      6.3855,
+      6.8731,
+      7.4246,
+      7.9064,
+      8.4579,
+      8.9745,
+      9.4912,
+      9.973,
+      10.5244,
+      11.0121,
+      11.5577,
+      12.0744,
+      12.5968,
+      13.1135,
+      13.6301,
+      14.1468
+    ],
+    "downbeats": [
+      0.6908,
+      2.798,
+      4.8414,
+      6.8731,
+      8.9745,
+      11.0121,
+      13.1135
+    ],
+    "onsets": [
+      0.0522,
+      0.1509,
+      0.7082,
+      1.2307,
+      1.7415,
+      3.4772,
+      4.2899,
+      6.8731,
+      7.3898,
+      7.9064,
+      10.5244,
+      11.0121,
+      11.5287
+    ],
+    "drops": [
+      {
+        "time": 4.2899,
+        "strength": 1.9795
+      }
+    ],
+    "sections": [
+      {
+        "id": "aud1",
+        "confidence": 1.0,
+        "start": 0.0,
+        "end": 2.2581,
+        "type": "audio_section",
+        "label": "drop",
+        "energy": 0.806
+      },
+      {
+        "id": "aud2",
+        "confidence": 1.0,
+        "start": 2.2581,
+        "end": 4.2899,
+        "type": "audio_section",
+        "label": "break",
+        "energy": 0.3886
+      },
+      {
+        "id": "aud3",
+        "confidence": 1.0,
+        "start": 4.2899,
+        "end": 14.4,
+        "type": "audio_section",
+        "label": "drop",
+        "energy": 0.7212
+      }
+    ],
+    "energy": {
+      "t0": 0.0,
+      "dt": 0.05,
+      "values": [
+        0.0799,
+        0.2304,
+        0.4859,
+        0.7541,
+        0.9693,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.9903,
+        0.9999,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.9741,
+        0.9331,
+        0.9428,
+        1.0,
+        1.0,
+        1.0,
+        0.9706,
+        0.8658,
+        0.7731,
+        0.7231,
+        0.6907,
+        0.6692,
+        0.6651,
+        0.6797,
+        0.7014,
+        0.7157,
+        0.7255,
+        0.7581,
+        0.7689,
+        0.7411,
+        0.7038,
+        0.6223,
+        0.5506,
+        0.5436,
+        0.5687,
+        0.6202,
+        0.6804,
+        0.7132,
+        0.6952,
+        0.662,
+        0.6608,
+        0.698,
+        0.745,
+        0.7478,
+        0.6928,
+        0.5721,
+        0.4412,
+        0.3544,
+        0.2899,
+        0.2485,
+        0.2314,
+        0.2216,
+        0.2144,
+        0.2096,
+        0.2065,
+        0.2062,
+        0.2072,
+        0.2062,
+        0.203,
+        0.2101,
+        0.2873,
+        0.4006,
+        0.4841,
+        0.5309,
+        0.5184,
+        0.4606,
+        0.3998,
+        0.3606,
+        0.3354,
+        0.3266,
+        0.3388,
+        0.355,
+        0.3424,
+        0.2917,
+        0.2235,
+        0.1754,
+        0.2171,
+        0.3411,
+        0.5038,
+        0.6767,
+        0.7901,
+        0.8345,
+        0.8537,
+        0.8667,
+        0.8641,
+        0.8421,
+        0.797,
+        0.73,
+        0.6819,
+        0.6739,
+        0.6894,
+        0.7267,
+        0.7725,
+        0.8028,
+        0.8236,
+        0.8398,
+        0.8345,
+        0.7961,
+        0.7596,
+        0.7496,
+        0.7622,
+        0.7972,
+        0.8345,
+        0.8548,
+        0.8601,
+        0.8482,
+        0.8199,
+        0.7837,
+        0.7597,
+        0.7589,
+        0.7813,
+        0.8057,
+        0.8113,
+        0.8043,
+        0.79,
+        0.7745,
+        0.7647,
+        0.7492,
+        0.7343,
+        0.7335,
+        0.7493,
+        0.7881,
+        0.8388,
+        0.8817,
+        0.9124,
+        0.9148,
+        0.8832,
+        0.8405,
+        0.7894,
+        0.7503,
+        0.752,
+        0.7662,
+        0.7801,
+        0.7963,
+        0.8093,
+        0.8191,
+        0.8227,
+        0.8116,
+        0.7762,
+        0.7428,
+        0.7389,
+        0.763,
+        0.8042,
+        0.8382,
+        0.8682,
+        0.8845,
+        0.8776,
+        0.8621,
+        0.8274,
+        0.7868,
+        0.7696,
+        0.7786,
+        0.7923,
+        0.7973,
+        0.8008,
+        0.7931,
+        0.7767,
+        0.7645,
+        0.7436,
+        0.7159,
+        0.712,
+        0.7308,
+        0.7544,
+        0.7867,
+        0.8153,
+        0.8345,
+        0.8487,
+        0.8474,
+        0.8253,
+        0.7771,
+        0.7137,
+        0.6773,
+        0.6726,
+        0.69,
+        0.7346,
+        0.7895,
+        0.8262,
+        0.845,
+        0.8563,
+        0.8412,
+        0.8067,
+        0.7803,
+        0.7638,
+        0.7589,
+        0.773,
+        0.7968,
+        0.8202,
+        0.8319,
+        0.8221,
+        0.7905,
+        0.7459,
+        0.7125,
+        0.7092,
+        0.7255,
+        0.7507,
+        0.7685,
+        0.7708,
+        0.7631,
+        0.7476,
+        0.7387,
+        0.7311,
+        0.7286,
+        0.7475,
+        0.7741,
+        0.8073,
+        0.8407,
+        0.8588,
+        0.8605,
+        0.8418,
+        0.8163,
+        0.7866,
+        0.7589,
+        0.7543,
+        0.763,
+        0.7744,
+        0.7915,
+        0.8039,
+        0.8178,
+        0.8294,
+        0.8258,
+        0.811,
+        0.7755,
+        0.7415,
+        0.7367,
+        0.7414,
+        0.7536,
+        0.7709,
+        0.782,
+        0.7921,
+        0.803,
+        0.8147,
+        0.8119,
+        0.7916,
+        0.78,
+        0.7743,
+        0.7671,
+        0.7738,
+        0.7861,
+        0.7977,
+        0.809,
+        0.8102,
+        0.7931,
+        0.7612,
+        0.7486,
+        0.7631,
+        0.7874,
+        0.8175,
+        0.8367,
+        0.8393,
+        0.8309,
+        0.8084,
+        0.7703,
+        0.707,
+        0.6338,
+        0.5851,
+        0.5569,
+        0.5445,
+        0.5502,
+        0.557,
+        0.546,
+        0.5196,
+        0.4836,
+        0.428,
+        0.3656,
+        0.3172,
+        0.2822,
+        0.2559,
+        0.2376,
+        0.2193,
+        0.1955,
+        0.1687,
+        0.1424,
+        0.1168,
+        0.0927,
+        0.0737,
+        0.0598,
+        0.049,
+        0.0393,
+        0.0296,
+        0.0214
+      ]
+    },
+    "has_speech": null
+  },
+  "timeline": {
+    "id": "timeline",
+    "confidence": 1.0,
+    "type": "timeline",
+    "sections": [
+      {
+        "id": "sec1",
+        "confidence": 1.0,
+        "start": 0.0,
+        "end": 2.1667,
+        "type": "section",
+        "role": "hook",
+        "cuts_per_second": 0.9231,
+        "mean_shot_duration": 0.7222,
+        "energy": 0.8049,
+        "items": [
+          {
+            "id": "s1",
+            "confidence": 1.0,
+            "start": 0.0,
+            "end": 0.6,
+            "type": "shot",
+            "index": 0,
+            "frame_start": 0,
+            "frame_end": 18,
+            "beats": 1.16,
+            "on_beat": true,
+            "beat_offset": -0.0522,
+            "source_group": "A",
+            "look": {
+              "brightness": 0.4137,
+              "contrast": 0.2324,
+              "saturation": 0.2602,
+              "temperature": 0.0011,
+              "tint": -0.0099,
+              "bw": false,
+              "sharpness": 0.8606,
+              "vignette": 0.0,
+              "dominant_color": [
+                120,
+                107,
+                99
+              ]
+            },
+            "layout": {
+              "letterbox_top": 0.0,
+              "letterbox_bottom": 0.0,
+              "pillarbox_left": 0.0,
+              "pillarbox_right": 0.0,
+              "blur_pad": false,
+              "content_box": [
+                0.0,
+                0.0,
+                1.0,
+                1.0
+              ],
+              "split": "none"
+            },
+            "motion": {
+              "magnitude": 0.0082,
+              "camera": "zoom",
+              "zoom_ratio": 1.1606,
+              "pan": [
+                0.0218,
+                -0.0442
+              ],
+              "rotation": -1.4673
+            },
+            "effects": []
+          },
+          {
+            "id": "t1",
+            "confidence": 0.73,
+            "start": 0.6,
+            "end": 0.6333,
+            "type": "transition",
+            "kind": "zoom",
+            "from_shot": "s1",
+            "to_shot": "s2",
+            "color": null,
+            "on_beat": false,
+            "beat_offset": -0.0908,
+            "params": {
+              "score": 0.935,
+              "threshold": 0.3,
+              "blur_ratio": 0.297,
+              "scale": 0.87
+            }
+          },
+          {
+            "id": "s2",
+            "confidence": 1.0,
+            "start": 0.6,
+            "end": 1.6333,
+            "type": "shot",
+            "index": 1,
+            "frame_start": 18,
+            "frame_end": 49,
+            "beats": 2.0,
+            "on_beat": false,
+            "beat_offset": -0.0908,
+            "source_group": "B",
+            "look": {
+              "brightness": 0.3983,
+              "contrast": 0.2065,
+              "saturation": 0.2505,
+              "temperature": -0.0091,
+              "tint": -0.0097,
+              "bw": false,
+              "sharpness": 0.891,
+              "vignette": 0.0,
+              "dominant_color": [
+                64,
+                67,
+                78
+              ]
+            },
+            "layout": {
+              "letterbox_top": 0.0,
+              "letterbox_bottom": 0.0,
+              "pillarbox_left": 0.0,
+              "pillarbox_right": 0.0,
+              "blur_pad": false,
+              "content_box": [
+                0.0,
+                0.0,
+                1.0,
+                1.0
+              ],
+              "split": "none"
+            },
+            "motion": {
+              "magnitude": 0.0119,
+              "camera": "complex",
+              "zoom_ratio": 0.9209,
+              "pan": [
+                -0.0176,
+                -0.0527
+              ],
+              "rotation": 1.9048
+            },
+            "effects": [
+              {
+                "id": "s2.pan1",
+                "confidence": 0.364,
+                "start": 1.052,
+                "end": 1.3452,
+                "easing": "ease_out",
+                "keyframes": [],
+                "params": {
+                  "fit_r2": 0.9561
+                },
+                "type": "pan",
+                "dx": -0.0167,
+                "dy": -0.0534
+              },
+              {
+                "id": "s2.rgb_split1",
+                "confidence": 0.634,
+                "start": 1.1667,
+                "end": 1.2,
+                "easing": "linear",
+                "keyframes": [
+                  {
+                    "t": 1.1667,
+                    "v": -0.0054
+                  }
+                ],
+                "params": {},
+                "type": "rgb_split",
+                "offset": -0.0054
+              }
+            ]
+          },
+          {
+            "id": "t2",
+            "confidence": 0.796,
+            "start": 1.6333,
+            "end": 1.6667,
+            "type": "transition",
+            "kind": "spin",
+            "from_shot": "s2",
+            "to_shot": "s3",
+            "color": null,
+            "on_beat": false,
+            "beat_offset": -0.1082,
+            "params": {
+              "score": 1.0,
+              "threshold": 0.3,
+              "blur_ratio": 0.225,
+              "angle": -35.0
+            }
+          },
+          {
+            "id": "s3",
+            "confidence": 1.0,
+            "start": 1.6333,
+            "end": 2.1667,
+            "type": "shot",
+            "index": 2,
+            "frame_start": 49,
+            "frame_end": 65,
+            "beats": 1.03,
+            "on_beat": false,
+            "beat_offset": -0.1082,
+            "source_group": "C",
+            "look": {
+              "brightness": 0.3831,
+              "contrast": 0.2081,
+              "saturation": 0.2433,
+              "temperature": -0.0525,
+              "tint": -0.0181,
+              "bw": false,
+              "sharpness": 0.9078,
+              "vignette": 0.0,
+              "dominant_color": [
+                78,
+                77,
+                81
+              ]
+            },
+            "layout": {
+              "letterbox_top": 0.0344,
+              "letterbox_bottom": 0.0,
+              "pillarbox_left": 0.0,
+              "pillarbox_right": 0.0,
+              "blur_pad": false,
+              "content_box": [
+                0.0,
+                0.0344,
+                1.0,
+                0.9656
+              ],
+              "split": "none"
+            },
+            "motion": {
+              "magnitude": 0.0126,
+              "camera": "zoom",
+              "zoom_ratio": 0.9308,
+              "pan": [
+                -0.0056,
+                -0.0366
+              ],
+              "rotation": -0.2771
+            },
+            "effects": []
+          }
+        ]
+      },
+      {
+        "id": "sec2",
+        "confidence": 1.0,
+        "start": 2.1667,
+        "end": 4.2,
+        "type": "section",
+        "role": "build",
+        "cuts_per_second": 0.4918,
+        "mean_shot_duration": 2.0333,
+        "energy": 0.4037,
+        "items": [
+          {
+            "id": "t3",
+            "confidence": 0.645,
+            "start": 2.1667,
+            "end": 2.2,
+            "type": "transition",
+            "kind": "whip",
+            "from_shot": "s3",
+            "to_shot": "s4",
+            "color": null,
+            "on_beat": false,
+            "beat_offset": -0.0915,
+            "params": {
+              "score": 0.639,
+              "threshold": 0.3,
+              "blur_ratio": 0.39,
+              "direction": "left"
+            }
+          },
+          {
+            "id": "s4",
+            "confidence": 1.0,
+            "start": 2.1667,
+            "end": 4.2,
+            "type": "shot",
+            "index": 3,
+            "frame_start": 65,
+            "frame_end": 126,
+            "beats": 3.93,
+            "on_beat": false,
+            "beat_offset": -0.0915,
+            "source_group": "A",
+            "look": {
+              "brightness": 0.4118,
+              "contrast": 0.2327,
+              "saturation": 0.2602,
+              "temperature": 0.0022,
+              "tint": -0.0109,
+              "bw": false,
+              "sharpness": 0.8582,
+              "vignette": 0.0,
+              "dominant_color": [
+                122,
+                107,
+                100
+              ]
+            },
+            "layout": {
+              "letterbox_top": 0.0,
+              "letterbox_bottom": 0.0,
+              "pillarbox_left": 0.0,
+              "pillarbox_right": 0.0,
+              "blur_pad": false,
+              "content_box": [
+                0.0,
+                0.0,
+                1.0,
+                1.0
+              ],
+              "split": "none"
+            },
+            "motion": {
+              "magnitude": 0.0042,
+              "camera": "complex",
+              "zoom_ratio": 0.9279,
+              "pan": [
+                0.0186,
+                -0.0411
+              ],
+              "rotation": -4.0894
+            },
+            "effects": [
+              {
+                "id": "s4.rotate1",
+                "confidence": 0.598,
+                "start": 2.1667,
+                "end": 4.0523,
+                "easing": "linear",
+                "keyframes": [
+                  {
+                    "t": 2.1667,
+                    "v": 0.0
+                  },
+                  {
+                    "t": 2.4313,
+                    "v": -0.6968
+                  },
+                  {
+                    "t": 2.6959,
+                    "v": -1.2665
+                  },
+                  {
+                    "t": 2.9605,
+                    "v": -1.8902
+                  },
+                  {
+                    "t": 3.2251,
+                    "v": -2.4039
+                  },
+                  {
+                    "t": 3.4897,
+                    "v": -2.8992
+                  },
+                  {
+                    "t": 3.7543,
+                    "v": -3.4155
+                  },
+                  {
+                    "t": 4.0189,
+                    "v": -3.796
+                  }
+                ],
+                "params": {
+                  "fit_r2": 0.9954
+                },
+                "type": "rotate",
+                "angle_from": 0.0,
+                "angle_to": -3.7771
+              },
+              {
+                "id": "s4.zoom1",
+                "confidence": 0.906,
+                "start": 2.1879,
+                "end": 2.8318,
+                "easing": "punch",
+                "keyframes": [
+                  {
+                    "t": 2.1879,
+                    "v": 1.0
+                  },
+                  {
+                    "t": 2.2751,
+                    "v": 0.8973
+                  },
+                  {
+                    "t": 2.3623,
+                    "v": 0.896
+                  },
+                  {
+                    "t": 2.4496,
+                    "v": 0.8963
+                  },
+                  {
+                    "t": 2.5368,
+                    "v": 0.8966
+                  },
+                  {
+                    "t": 2.624,
+                    "v": 0.8968
+                  },
+                  {
+                    "t": 2.7113,
+                    "v": 0.8969
+                  },
+                  {
+                    "t": 2.7985,
+                    "v": 0.8971
+                  }
+                ],
+                "params": {
+                  "scale_start": 1.0006,
+                  "fit_r2": 0.999,
+                  "residual": 0.0008,
+                  "inliers": 0.951
+                },
+                "type": "zoom",
+                "scale_from": 1.0,
+                "scale_to": 0.8771,
+                "center": [
+                  0.2422,
+                  0.8529
+                ],
+                "digital": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "sec3",
+        "confidence": 1.0,
+        "start": 4.2,
+        "end": 14.4,
+        "type": "section",
+        "role": "drop",
+        "cuts_per_second": 1.8627,
+        "mean_shot_duration": 0.5368,
+        "energy": 0.7173,
+        "items": [
+          {
+            "id": "t4",
+            "confidence": 0.8,
+            "start": 4.2,
+            "end": 4.2333,
+            "type": "transition",
+            "kind": "zoom",
+            "from_shot": "s4",
+            "to_shot": "s5",
+            "color": null,
+            "on_beat": false,
+            "beat_offset": -0.0899,
+            "params": {
+              "score": 1.0,
+              "threshold": 0.3,
+              "blur_ratio": 0.156,
+              "scale": 0.741
+            }
+          },
+          {
+            "id": "s5",
+            "confidence": 1.0,
+            "start": 4.2,
+            "end": 4.7667,
+            "type": "shot",
+            "index": 4,
+            "frame_start": 126,
+            "frame_end": 143,
+            "beats": 1.1,
+            "on_beat": false,
+            "beat_offset": -0.0899,
+            "source_group": "B",
+            "look": {
+              "brightness": 0.3537,
+              "contrast": 0.2009,
+              "saturation": 0.2962,
+              "temperature": -0.0586,
+              "tint": -0.0087,
+              "bw": false,
+              "sharpness": 0.8837,
+              "vignette": 0.0,
+              "dominant_color": [
+                44,
+                49,
+                60
+              ]
+            },
+            "layout": {
+              "letterbox_top": 0.0,
+              "letterbox_bottom": 0.0,
+              "pillarbox_left": 0.0,
+              "pillarbox_right": 0.0,
+              "blur_pad": false,
+              "content_box": [
+                0.0,
+                0.0,
+                1.0,
+                1.0
+              ],
+              "split": "none"
+            },
+            "motion": {
+              "magnitude": 0.011,
+              "camera": "zoom",
+              "zoom_ratio": 0.9025,
+              "pan": [
+                -0.0385,
+                -0.029
+              ],
+              "rotation": 1.2786
+            },
+            "effects": [
+              {
+                "id": "s5.rgb_split1",
+                "confidence": 0.689,
+                "start": 4.2333,
+                "end": 4.2667,
+                "easing": "linear",
+                "keyframes": [
+                  {
+                    "t": 4.2333,
+                    "v": -0.0077
+                  }
+                ],
+                "params": {},
+                "type": "rgb_split",
+                "offset": -0.0077
+              }
+            ]
+          },
+          {
+            "id": "t5",
+            "confidence": 0.8,
+            "start": 4.7333,
+            "end": 4.7667,
+            "type": "transition",
+            "kind": "zoom",
+            "from_shot": "s5",
+            "to_shot": "s6",
+            "color": null,
+            "on_beat": false,
+            "beat_offset": -0.0747,
+            "params": {
+              "score": 0.927,
+              "threshold": 0.3,
+              "blur_ratio": 0.184,
+              "scale": 1.35
+            }
+          },
+          {
+            "id": "s6",
+            "confidence": 1.0,
+            "start": 4.7667,
+            "end": 5.2333,
+            "type": "shot",
+            "index": 5,
+            "frame_start": 143,
+            "frame_end": 157,
+            "beats": 0.9,
+            "on_beat": false,
+            "beat_offset": -0.0747,
+            "source_group": "D",
+            "look": {
+              "brightness": 0.4368,
+              "contrast": 0.2081,
+              "saturation": 0.2366,
+              "temperature": 0.0227,
+              "tint": -0.0124,
+              "bw": false,
+              "sharpness": 0.8706,
+              "vignette": 0.0,
+              "dominant_color": [
+                151,
+                140,
+                133
+              ]
+            },
+            "layout": {
+              "letterbox_top": 0.0,
+              "letterbox_bottom": 0.0,
+              "pillarbox_left": 0.0,
+              "pillarbox_right": 0.0,
+              "blur_pad": false,
+              "content_box": [
+                0.0,
+                0.0,
+                1.0,
+                1.0
+              ],
+              "split": "none"
+            },
+            "motion": {
+              "magnitude": 0.012,
+              "camera": "complex",
+              "zoom_ratio": 0.904,
+              "pan": [
+                0.0346,
+                -0.0569
+              ],
+              "rotation": 0.4797
+            },
+            "effects": [
+              {
+                "id": "s6.zoom1",
+                "confidence": 0.954,
+                "start": 4.7803,
+                "end": 5.2333,
+                "easing": "punch",
+                "keyframes": [
+                  {
+                    "t": 4.7803,
+                    "v": 1.0
+                  },
+                  {
+                    "t": 4.8403,
+                    "v": 0.9054
+                  },
+                  {
+                    "t": 4.9002,
+                    "v": 0.899
+                  },
+                  {
+                    "t": 4.9602,
+                    "v": 0.8993
+                  },
+                  {
+                    "t": 5.0201,
+                    "v": 0.8996
+                  },
+                  {
+                    "t": 5.0801,
+                    "v": 0.9001
+                  },
+                  {
+                    "t": 5.14,
+                    "v": 0.9006
+                  },
+                  {
+                    "t": 5.2,
+                    "v": 0.9302
+                  }
+                ],
+                "params": {
+                  "scale_start": 1.0002,
+                  "fit_r2": 0.9999,
+                  "residual": 0.0009,
+                  "inliers": 0.95
+                },
+                "type": "zoom",
+                "scale_from": 1.0,
+                "scale_to": 0.8742,
+                "center": [
+                  0.5,
+                  0.5
+                ],
+                "digital": true
+              }
+            ]
+          },
+          {
+            "id": "t6",
+            "confidence": 0.798,
+            "start": 5.2333,
+            "end": 5.2667,
+            "type": "transition",
+            "kind": "zoom",
+            "from_shot": "s6",
+            "to_shot": "s7",
+            "color": null,
+            "on_beat": false,
+            "beat_offset": -0.1247,
+            "params": {
+              "score": 1.0,
+              "threshold": 0.3,
+              "blur_ratio": 0.222,
+              "scale": 0.741
+            }
+          },
+          {
+            "id": "s7",
+            "confidence": 1.0,
+            "start": 5.2333,
+            "end": 5.7667,
+            "type": "shot",
+            "index": 6,
+            "frame_start": 157,
+            "frame_end": 173,
+            "beats": 1.03,
+            "on_beat": false,
+            "beat_offset": -0.1247,
+            "source_group": "C",
+            "look": {
+              "brightness": 0.3767,
+              "contrast": 0.1967,
+              "saturation": 0.2556,
+              "temperature": -0.059,
+              "tint": -0.02,
+              "bw": false,
+              "sharpness": 0.8889,
+              "vignette": 0.0,
+              "dominant_color": [
+                78,
+                76,
+                83
+              ]
+            },
+            "layout": {
+              "letterbox_top": 0.0375,
+              "letterbox_bottom": 0.0,
+              "pillarbox_left": 0.0,
+              "pillarbox_right": 0.0,
+              "blur_pad": false,
+              "content_box": [
+                0.0,
+                0.0375,
+                1.0,
+                0.9625
+              ],
+              "split": "none"
+            },
+            "motion": {
+              "magnitude": 0.0124,
+              "camera": "zoom",
+              "zoom_ratio": 0.9153,
+              "pan": [
+                -0.0122,
+                -0.0344
+              ],
+              "rotation": -0.2927
+            },
+            "effects": [
+              {
+                "id": "s7.rgb_split1",
+                "confidence": 0.675,
+                "start": 5.2667,
+                "end": 5.3,
+                "easing": "linear",
+                "keyframes": [
+                  {
+                    "t": 5.2667,
+                    "v": -0.0071
+                  }
+                ],
+                "params": {},
+                "type": "rgb_split",
+                "offset": -0.0071
+              }
+            ]
+          },
+          {
+            "id": "t7",
+            "confidence": 0.789,
+            "start": 5.7667,
+            "end": 5.8,
+            "type": "transition",
+            "kind": "whip",
+            "from_shot": "s7",
+            "to_shot": "s8",
+            "color": null,
+            "on_beat": false,
+            "beat_offset": -0.108,
+            "params": {
+              "score": 0.646,
+              "threshold": 0.3,
+              "blur_ratio": 0.232,
+              "direction": "right"
+            }
+          },
+          {
+            "id": "s8",
+            "confidence": 1.0,
+            "start": 5.7667,
+            "end": 6.3,
+            "type": "shot",
+            "index": 7,
+            "frame_start": 173,
+            "frame_end": 189,
+            "beats": 1.03,
+            "on_beat": false,
+            "beat_offset": -0.108,
+            "source_group": "A",
+            "look": {
+              "brightness": 0.4114,
+              "contrast": 0.2319,
+              "saturation": 0.2603,
+              "temperature": 0.0005,
+              "tint": -0.0101,
+              "bw": false,
+              "sharpness": 0.8515,
+              "vignette": 0.0,
+              "dominant_color": [
+                121,
+                107,
+                100
+              ]
+            },
+            "layout": {
+              "letterbox_top": 0.0,
+              "letterbox_bottom": 0.0,
+              "pillarbox_left": 0.0,
+              "pillarbox_right": 0.0,
+              "blur_pad": false,
+              "content_box": [
+                0.0,
+                0.0,
+                1.0,
+                1.0
+              ],
+              "split": "none"
+            },
+            "motion": {
+              "magnitude": 0.0137,
+              "camera": "zoom",
+              "zoom_ratio": 0.934,
+              "pan": [
+                -0.0312,
+                -0.0147
+              ],
+              "rotation": -1.328
+            },
+            "effects": [
+              {
+                "id": "s8.rgb_split1",
+                "confidence": 0.656,
+                "start": 5.8,
+                "end": 5.8333,
+                "easing": "linear",
+                "keyframes": [
+                  {
+                    "t": 5.8,
+                    "v": -0.0063
+                  }
+                ],
+                "params": {},
+                "type": "rgb_split",
+                "offset": -0.0063
+              }
+            ]
+          },
+          {
+            "id": "t8",
+            "confidence": 0.8,
+            "start": 6.3,
+            "end": 6.3333,
+            "type": "transition",
+            "kind": "zoom",
+            "from_shot": "s8",
+            "to_shot": "s9",
+            "color": null,
+            "on_beat": false,
+            "beat_offset": -0.0855,
+            "params": {
+              "score": 0.893,
+              "threshold": 0.3,
+              "blur_ratio": 0.126,
+              "scale": 0.87
+            }
+          },
+          {
+            "id": "s9",
+            "confidence": 1.0,
+            "start": 6.3,
+            "end": 6.8,
+            "type": "shot",
+            "index": 8,
+            "frame_start": 189,
+            "frame_end": 204,
+            "beats": 0.97,
+            "on_beat": false,
+            "beat_offset": -0.0855,
+            "source_group": "B",
+            "look": {
+              "brightness": 0.3537,
+              "contrast": 0.2012,
+              "saturation": 0.2963,
+              "temperature": -0.0585,
+              "tint": -0.0088,
+              "bw": false,
+              "sharpness": 0.8826,
+              "vignette": 0.0,
+              "dominant_color": [
+                44,
+                49,
+                60
+              ]
+            },
+            "layout": {
+              "letterbox_top": 0.0,
+              "letterbox_bottom": 0.0,
+              "pillarbox_left": 0.0,
+              "pillarbox_right": 0.0,
+              "blur_pad": false,
+              "content_box": [
+                0.0,
+                0.0,
+                1.0,
+                1.0
+              ],
+              "split": "none"
+            },
+            "motion": {
+              "magnitude": 0.0129,
+              "camera": "zoom",
+              "zoom_ratio": 0.9595,
+              "pan": [
+                0.0067,
+                -0.0404
+              ],
+              "rotation": 0.9119
+            },
+            "effects": [
+              {
+                "id": "s9.rgb_split1",
+                "confidence": 0.608,
+                "start": 6.3333,
+                "end": 6.3667,
+                "easing": "linear",
+                "keyframes": [
+                  {
+                    "t": 6.3333,
+                    "v": -0.0044
+                  }
+                ],
+                "params": {},
+                "type": "rgb_split",
+                "offset": -0.0044
+              }
+            ]
+          },
+          {
+            "id": "t9",
+            "confidence": 0.546,
+            "start": 6.8,
+            "end": 6.8333,
+            "type": "transition",
+            "kind": "zoom",
+            "from_shot": "s9",
+            "to_shot": "s10",
+            "color": null,
+            "on_beat": false,
+            "beat_offset": -0.0731,
+            "params": {
+              "score": 0.996,
+              "threshold": 0.3,
+              "blur_ratio": 0.5,
+              "scale": 0.87
+            }
+          },
+          {
+            "id": "s10",
+            "confidence": 1.0,
+            "start": 6.8,
+            "end": 7.2667,
+            "type": "shot",
+            "index": 9,
+            "frame_start": 204,
+            "frame_end": 218,
+            "beats": 0.9,
+            "on_beat": false,
+            "beat_offset": -0.0731,
+            "source_group": "D",
+            "look": {
+              "brightness": 0.437,
+              "contrast": 0.2082,
+              "saturation": 0.2332,
+              "temperature": 0.0229,
+              "tint": -0.0127,
+              "bw": false,
+              "sharpness": 0.8828,
+              "vignette": 0.0,
+              "dominant_color": [
+                151,
+                140,
+                133
+              ]
+            },
+            "layout": {
+              "letterbox_top": 0.0,
+              "letterbox_bottom": 0.0,
+              "pillarbox_left": 0.0,
+              "pillarbox_right": 0.0,
+              "blur_pad": false,
+              "content_box": [
+                0.0,
+                0.0,
+                1.0,
+                1.0
+              ],
+              "split": "none"
+            },
+            "motion": {
+              "magnitude": 0.0128,
+              "camera": "zoom",
+              "zoom_ratio": 0.9656,
+              "pan": [
+                0.0216,
+                -0.0384
+              ],
+              "rotation": 0.4751
+            },
+            "effects": []
+          },
+          {
+            "id": "t10",
+            "confidence": 0.557,
+            "start": 7.2667,
+            "end": 7.3,
+            "type": "transition",
+            "kind": "zoom",
+            "from_shot": "s10",
+            "to_shot": "s11",
+            "color": null,
+            "on_beat": false,
+            "beat_offset": -0.1579,
+            "params": {
+              "score": 0.93,
+              "threshold": 0.3,
+              "blur_ratio": 0.487,
+              "scale": 0.87
+            }
+          },
+          {
+            "id": "s11",
+            "confidence": 1.0,
+            "start": 7.2667,
+            "end": 7.8,
+            "type": "shot",
+            "index": 10,
+            "frame_start": 218,
+            "frame_end": 234,
+            "beats": 1.03,
+            "on_beat": false,
+            "beat_offset": -0.1579,
+            "source_group": "C",
+            "look": {
+              "brightness": 0.3766,
+              "contrast": 0.1968,
+              "saturation": 0.2553,
+              "temperature": -0.06,
+              "tint": -0.0193,
+              "bw": false,
+              "sharpness": 0.8928,
+              "vignette": 0.0,
+              "dominant_color": [
+                78,
+                76,
+                82
+              ]
+            },
+            "layout": {
+              "letterbox_top": 0.0375,
+              "letterbox_bottom": 0.0,
+              "pillarbox_left": 0.0,
+              "pillarbox_right": 0.0,
+              "blur_pad": false,
+              "content_box": [
+                0.0,
+                0.0375,
+                1.0,
+                0.9625
+              ],
+              "split": "none"
+            },
+            "motion": {
+              "magnitude": 0.012,
+              "camera": "zoom",
+              "zoom_ratio": 1.0009,
+              "pan": [
+                0.0397,
+                -0.0366
+              ],
+              "rotation": -0.3771
+            },
+            "effects": []
+          },
+          {
+            "id": "t11",
+            "confidence": 0.527,
+            "start": 7.8,
+            "end": 7.8333,
+            "type": "transition",
+            "kind": "whip",
+            "from_shot": "s11",
+            "to_shot": "s12",
+            "color": null,
+            "on_beat": false,
+            "beat_offset": -0.1064,
+            "params": {
+              "score": 0.817,
+              "threshold": 0.3,
+              "blur_ratio": 0.52,
+              "direction": "right"
+            }
+          },
+          {
+            "id": "s12",
+            "confidence": 1.0,
+            "start": 7.8,
+            "end": 8.3667,
+            "type": "shot",
+            "index": 11,
+            "frame_start": 234,
+            "frame_end": 251,
+            "beats": 1.1,
+            "on_beat": false,
+            "beat_offset": -0.1064,
+            "source_group": "A",
+            "look": {
+              "brightness": 0.4112,
+              "contrast": 0.2318,
+              "saturation": 0.2607,
+              "temperature": 0.0001,
+              "tint": -0.0098,
+              "bw": false,
+              "sharpness": 0.8555,
+              "vignette": 0.0,
+              "dominant_color": [
+                121,
+                107,
+                100
+              ]
+            },
+            "layout": {
+              "letterbox_top": 0.0,
+              "letterbox_bottom": 0.0,
+              "pillarbox_left": 0.0,
+              "pillarbox_right": 0.0,
+              "blur_pad": false,
+              "content_box": [
+                0.0,
+                0.0,
+                1.0,
+                1.0
+              ],
+              "split": "none"
+            },
+            "motion": {
+              "magnitude": 0.0078,
+              "camera": "zoom",
+              "zoom_ratio": 0.9414,
+              "pan": [
+                -0.0119,
+                -0.029
+              ],
+              "rotation": -1.2456
+            },
+            "effects": []
+          },
+          {
+            "id": "t12",
+            "confidence": 0.665,
+            "start": 8.3333,
+            "end": 8.3667,
+            "type": "transition",
+            "kind": "zoom",
+            "from_shot": "s12",
+            "to_shot": "s13",
+            "color": null,
+            "on_beat": false,
+            "beat_offset": -0.0912,
+            "params": {
+              "score": 1.0,
+              "threshold": 0.3,
+              "blur_ratio": 0.369,
+              "scale": 1.35
+            }
+          },
+          {
+            "id": "s13",
+            "confidence": 1.0,
+            "start": 8.3667,
+            "end": 8.8667,
+            "type": "shot",
+            "index": 12,
+            "frame_start": 251,
+            "frame_end": 266,
+            "beats": 0.97,
+            "on_beat": false,
+            "beat_offset": -0.0912,
+            "source_group": "B",
+            "look": {
+              "brightness": 0.3538,
+              "contrast": 0.2013,
+              "saturation": 0.297,
+              "temperature": -0.0571,
+              "tint": -0.0084,
+              "bw": false,
+              "sharpness": 0.884,
+              "vignette": 0.0,
+              "dominant_color": [
+                44,
+                49,
+                59
+              ]
+            },
+            "layout": {
+              "letterbox_top": 0.0,
+              "letterbox_bottom": 0.0,
+              "pillarbox_left": 0.0,
+              "pillarbox_right": 0.0,
+              "blur_pad": false,
+              "content_box": [
+                0.0,
+                0.0,
+                1.0,
+                1.0
+              ],
+              "split": "none"
+            },
+            "motion": {
+              "magnitude": 0.0092,
+              "camera": "zoom",
+              "zoom_ratio": 0.911,
+              "pan": [
+                -0.0184,
+                0.0019
+              ],
+              "rotation": 1.3191
+            },
+            "effects": [
+              {
+                "id": "s13.zoom1",
+                "confidence": 0.935,
+                "start": 8.3803,
+                "end": 8.8288,
+                "easing": "punch",
+                "keyframes": [
+                  {
+                    "t": 8.3803,
+                    "v": 1.0
+                  },
+                  {
+                    "t": 8.4396,
+                    "v": 0.92
+                  },
+                  {
+                    "t": 8.4989,
+                    "v": 0.9161
+                  },
+                  {
+                    "t": 8.5582,
+                    "v": 0.916
+                  },
+                  {
+                    "t": 8.6175,
+                    "v": 0.9158
+                  },
+                  {
+                    "t": 8.6768,
+                    "v": 0.9158
+                  },
+                  {
+                    "t": 8.7361,
+                    "v": 0.9159
+                  },
+                  {
+                    "t": 8.7955,
+                    "v": 0.9274
+                  }
+                ],
+                "params": {
+                  "scale_start": 0.9998,
+                  "fit_r2": 0.9999,
+                  "residual": 0.0013,
+                  "inliers": 0.976
+                },
+                "type": "zoom",
+                "scale_from": 1.0,
+                "scale_to": 0.8938,
+                "center": [
+                  0.5,
+                  0.5
+                ],
+                "digital": true
+              }
+            ]
+          },
+          {
+            "id": "t13",
+            "confidence": 0.6,
+            "start": 8.8333,
+            "end": 8.8667,
+            "type": "transition",
+            "kind": "zoom",
+            "from_shot": "s13",
+            "to_shot": "s14",
+            "color": null,
+            "on_beat": false,
+            "beat_offset": -0.1078,
+            "params": {
+              "score": 1.0,
+              "threshold": 0.3,
+              "blur_ratio": 0.44,
+              "scale": 1.15
+            }
+          },
+          {
+            "id": "s14",
+            "confidence": 1.0,
+            "start": 8.8667,
+            "end": 9.4,
+            "type": "shot",
+            "index": 13,
+            "frame_start": 266,
+            "frame_end": 282,
+            "beats": 1.03,
+            "on_beat": false,
+            "beat_offset": -0.1078,
+            "source_group": "D",
+            "look": {
+              "brightness": 0.4369,
+              "contrast": 0.2083,
+              "saturation": 0.2329,
+              "temperature": 0.023,
+              "tint": -0.0125,
+              "bw": false,
+              "sharpness": 0.8878,
+              "vignette": 0.0,
+              "dominant_color": [
+                150,
+                139,
+                133
+              ]
+            },
+            "layout": {
+              "letterbox_top": 0.0,
+              "letterbox_bottom": 0.0,
+              "pillarbox_left": 0.0,
+              "pillarbox_right": 0.0,
+              "blur_pad": false,
+              "content_box": [
+                0.0,
+                0.0,
+                1.0,
+                1.0
+              ],
+              "split": "none"
+            },
+            "motion": {
+              "magnitude": 0.0153,
+              "camera": "complex",
+              "zoom_ratio": 0.8839,
+              "pan": [
+                0.0481,
+                -0.082
+              ],
+              "rotation": 0.6234
+            },
+            "effects": [
+              {
+                "id": "s14.rgb_split1",
+                "confidence": 0.735,
+                "start": 8.8667,
+                "end": 8.9,
+                "easing": "linear",
+                "keyframes": [
+                  {
+                    "t": 8.8667,
+                    "v": 0.0095
+                  }
+                ],
+                "params": {},
+                "type": "rgb_split",
+                "offset": 0.0095
+              },
+              {
+                "id": "s14.pan1",
+                "confidence": 0.644,
+                "start": 8.8667,
+                "end": 9.4,
+                "easing": "punch",
+                "keyframes": [],
+                "params": {
+                  "fit_r2": 0.8778
+                },
+                "type": "pan",
+                "dx": 0.0556,
+                "dy": -0.0608
+              },
+              {
+                "id": "s14.zoom1",
+                "confidence": 0.954,
+                "start": 8.8773,
+                "end": 9.3909,
+                "easing": "punch",
+                "keyframes": [
+                  {
+                    "t": 8.8773,
+                    "v": 1.0
+                  },
+                  {
+                    "t": 8.9459,
+                    "v": 0.8857
+                  },
+                  {
+                    "t": 9.0145,
+                    "v": 0.8776
+                  },
+                  {
+                    "t": 9.0831,
+                    "v": 0.8779
+                  },
+                  {
+                    "t": 9.1517,
+                    "v": 0.8784
+                  },
+                  {
+                    "t": 9.2203,
+                    "v": 0.8786
+                  },
+                  {
+                    "t": 9.289,
+                    "v": 0.8793
+                  },
+                  {
+                    "t": 9.3576,
+                    "v": 0.9053
+                  }
+                ],
+                "params": {
+                  "scale_start": 0.9997,
+                  "fit_r2": 0.9998,
+                  "residual": 0.0009,
+                  "inliers": 0.963
+                },
+                "type": "zoom",
+                "scale_from": 1.0,
+                "scale_to": 0.8557,
+                "center": [
+                  0.5,
+                  0.5
+                ],
+                "digital": true
+              },
+              {
+                "id": "s14.speed1",
+                "confidence": 0.75,
+                "start": 9.0333,
+                "end": 9.3333,
+                "easing": "linear",
+                "keyframes": [
+                  {
+                    "t": 9.0333,
+                    "v": 0.7143
+                  },
+                  {
+                    "t": 9.1333,
+                    "v": 0.7143
+                  },
+                  {
+                    "t": 9.2333,
+                    "v": 0.7143
+                  },
+                  {
+                    "t": 9.3,
+                    "v": 0.7143
+                  }
+                ],
+                "params": {
+                  "method": "frame_repeat",
+                  "repeat": 1.4
+                },
+                "type": "speed",
+                "kind": "slowmo",
+                "rate_from": 0.7143,
+                "rate_to": 0.7143
+              }
+            ]
+          },
+          {
+            "id": "t14",
+            "confidence": 0.758,
+            "start": 9.3667,
+            "end": 9.4,
+            "type": "transition",
+            "kind": "zoom",
+            "from_shot": "s14",
+            "to_shot": "s15",
+            "color": null,
+            "on_beat": false,
+            "beat_offset": -0.0912,
+            "params": {
+              "score": 0.498,
+              "threshold": 0.3,
+              "blur_ratio": 0.266,
+              "scale": 1.35
+            }
+          },
+          {
+            "id": "s15",
+            "confidence": 1.0,
+            "start": 9.4,
+            "end": 9.9,
+            "type": "shot",
+            "index": 14,
+            "frame_start": 282,
+            "frame_end": 297,
+            "beats": 0.97,
+            "on_beat": false,
+            "beat_offset": -0.0912,
+            "source_group": "C",
+            "look": {
+              "brightness": 0.3774,
+              "contrast": 0.1973,
+              "saturation": 0.2567,
+              "temperature": -0.0579,
+              "tint": -0.0204,
+              "bw": false,
+              "sharpness": 0.8918,
+              "vignette": 0.0,
+              "dominant_color": [
+                78,
+                76,
+                82
+              ]
+            },
+            "layout": {
+              "letterbox_top": 0.0344,
+              "letterbox_bottom": 0.0,
+              "pillarbox_left": 0.0,
+              "pillarbox_right": 0.0,
+              "blur_pad": false,
+              "content_box": [
+                0.0,
+                0.0344,
+                1.0,
+                0.9656
+              ],
+              "split": "none"
+            },
+            "motion": {
+              "magnitude": 0.0132,
+              "camera": "complex",
+              "zoom_ratio": 0.9494,
+              "pan": [
+                0.0574,
+                -0.0582
+              ],
+              "rotation": -0.1669
+            },
+            "effects": [
+              {
+                "id": "s15.zoom1",
+                "confidence": 0.952,
+                "start": 9.4167,
+                "end": 9.8,
+                "easing": "punch",
+                "keyframes": [
+                  {
+                    "t": 9.4167,
+                    "v": 1.0
+                  },
+                  {
+                    "t": 9.4667,
+                    "v": 0.9157
+                  },
+                  {
+                    "t": 9.5167,
+                    "v": 0.9081
+                  },
+                  {
+                    "t": 9.5667,
+                    "v": 0.908
+                  },
+                  {
+                    "t": 9.6167,
+                    "v": 0.9082
+                  },
+                  {
+                    "t": 9.6667,
+                    "v": 0.9084
+                  },
+                  {
+                    "t": 9.7167,
+                    "v": 0.9085
+                  },
+                  {
+                    "t": 9.7667,
+                    "v": 0.9086
+                  }
+                ],
+                "params": {
+                  "scale_start": 1.0005,
+                  "fit_r2": 0.9988,
+                  "residual": 0.0009,
+                  "inliers": 0.967
+                },
+                "type": "zoom",
+                "scale_from": 1.0,
+                "scale_to": 0.8781,
+                "center": [
+                  0.5,
+                  0.5
+                ],
+                "digital": true
+              }
+            ]
+          },
+          {
+            "id": "t15",
+            "confidence": 0.679,
+            "start": 9.9,
+            "end": 9.9333,
+            "type": "transition",
+            "kind": "zoom",
+            "from_shot": "s15",
+            "to_shot": "s16",
+            "color": null,
+            "on_beat": false,
+            "beat_offset": -0.073,
+            "params": {
+              "score": 0.963,
+              "threshold": 0.3,
+              "blur_ratio": 0.353,
+              "scale": 0.87
+            }
+          },
+          {
+            "id": "s16",
+            "confidence": 1.0,
+            "start": 9.9,
+            "end": 10.4333,
+            "type": "shot",
+            "index": 15,
+            "frame_start": 297,
+            "frame_end": 313,
+            "beats": 1.03,
+            "on_beat": false,
+            "beat_offset": -0.073,
+            "source_group": "A",
+            "look": {
+              "brightness": 0.4113,
+              "contrast": 0.2318,
+              "saturation": 0.2649,
+              "temperature": -0.0007,
+              "tint": -0.01,
+              "bw": false,
+              "sharpness": 0.853,
+              "vignette": 0.0,
+              "dominant_color": [
+                120,
+                106,
+                100
+              ]
+            },
+            "layout": {
+              "letterbox_top": 0.0,
+              "letterbox_bottom": 0.0,
+              "pillarbox_left": 0.0,
+              "pillarbox_right": 0.0,
+              "blur_pad": false,
+              "content_box": [
+                0.0,
+                0.0,
+                1.0,
+                1.0
+              ],
+              "split": "none"
+            },
+            "motion": {
+              "magnitude": 0.0135,
+              "camera": "zoom",
+              "zoom_ratio": 1.074,
+              "pan": [
+                -0.0173,
+                0.0082
+              ],
+              "rotation": -0.2736
+            },
+            "effects": []
+          },
+          {
+            "id": "t16",
+            "confidence": 1.0,
+            "start": 10.4333,
+            "end": 10.4333,
+            "type": "transition",
+            "kind": "cut",
+            "from_shot": "s16",
+            "to_shot": "s17",
+            "color": null,
+            "on_beat": false,
+            "beat_offset": -0.0911,
+            "params": {
+              "score": 1.0,
+              "threshold": 0.3
+            }
+          },
+          {
+            "id": "s17",
+            "confidence": 1.0,
+            "start": 10.4333,
+            "end": 10.9333,
+            "type": "shot",
+            "index": 16,
+            "frame_start": 313,
+            "frame_end": 328,
+            "beats": 0.97,
+            "on_beat": false,
+            "beat_offset": -0.0911,
+            "source_group": "B",
+            "look": {
+              "brightness": 0.3537,
+              "contrast": 0.2009,
+              "saturation": 0.3009,
+              "temperature": -0.0597,
+              "tint": -0.0094,
+              "bw": false,
+              "sharpness": 0.8828,
+              "vignette": 0.0,
+              "dominant_color": [
+                44,
+                49,
+                61
+              ]
+            },
+            "layout": {
+              "letterbox_top": 0.0,
+              "letterbox_bottom": 0.0,
+              "pillarbox_left": 0.0,
+              "pillarbox_right": 0.0,
+              "blur_pad": false,
+              "content_box": [
+                0.0,
+                0.0,
+                1.0,
+                1.0
+              ],
+              "split": "none"
+            },
+            "motion": {
+              "magnitude": 0.0155,
+              "camera": "complex",
+              "zoom_ratio": 0.9454,
+              "pan": [
+                0.0552,
+                -0.0654
+              ],
+              "rotation": 1.341
+            },
+            "effects": [
+              {
+                "id": "s17.pan1",
+                "confidence": 0.311,
+                "start": 10.4424,
+                "end": 10.9333,
+                "easing": "punch",
+                "keyframes": [],
+                "params": {
+                  "fit_r2": 0.6636
+                },
+                "type": "pan",
+                "dx": 0.0366,
+                "dy": -0.0365
+              },
+              {
+                "id": "s17.zoom1",
+                "confidence": 0.918,
+                "start": 10.4515,
+                "end": 10.8333,
+                "easing": "punch",
+                "keyframes": [
+                  {
+                    "t": 10.4515,
+                    "v": 1.0
+                  },
+                  {
+                    "t": 10.5013,
+                    "v": 0.9142
+                  },
+                  {
+                    "t": 10.5511,
+                    "v": 0.9043
+                  },
+                  {
+                    "t": 10.6009,
+                    "v": 0.9039
+                  },
+                  {
+                    "t": 10.6506,
+                    "v": 0.9036
+                  },
+                  {
+                    "t": 10.7004,
+                    "v": 0.9035
+                  },
+                  {
+                    "t": 10.7502,
+                    "v": 0.9034
+                  },
+                  {
+                    "t": 10.8,
+                    "v": 0.9033
+                  }
+                ],
+                "params": {
+                  "scale_start": 0.9991,
+                  "fit_r2": 0.9972,
+                  "residual": 0.0016,
+                  "inliers": 0.973
+                },
+                "type": "zoom",
+                "scale_from": 1.0,
+                "scale_to": 0.8703,
+                "center": [
+                  0.5,
+                  0.5
+                ],
+                "digital": true
+              }
+            ]
+          },
+          {
+            "id": "t17",
+            "confidence": 1.0,
+            "start": 10.9333,
+            "end": 10.9333,
+            "type": "transition",
+            "kind": "cut",
+            "from_shot": "s17",
+            "to_shot": "s18",
+            "color": null,
+            "on_beat": false,
+            "beat_offset": -0.0787,
+            "params": {
+              "score": 0.982,
+              "threshold": 0.3
+            }
+          },
+          {
+            "id": "s18",
+            "confidence": 1.0,
+            "start": 10.9333,
+            "end": 11.4667,
+            "type": "shot",
+            "index": 17,
+            "frame_start": 328,
+            "frame_end": 344,
+            "beats": 1.03,
+            "on_beat": false,
+            "beat_offset": -0.0787,
+            "source_group": "D",
+            "look": {
+              "brightness": 0.4368,
+              "contrast": 0.2083,
+              "saturation": 0.2331,
+              "temperature": 0.0227,
+              "tint": -0.0127,
+              "bw": false,
+              "sharpness": 0.8848,
+              "vignette": 0.0,
+              "dominant_color": [
+                150,
+                139,
+                133
+              ]
+            },
+            "layout": {
+              "letterbox_top": 0.0,
+              "letterbox_bottom": 0.0,
+              "pillarbox_left": 0.0,
+              "pillarbox_right": 0.0,
+              "blur_pad": false,
+              "content_box": [
+                0.0,
+                0.0,
+                1.0,
+                1.0
+              ],
+              "split": "none"
+            },
+            "motion": {
+              "magnitude": 0.0199,
+              "camera": "complex",
+              "zoom_ratio": 0.8706,
+              "pan": [
+                0.0668,
+                -0.105
+              ],
+              "rotation": 0.6808
+            },
+            "effects": [
+              {
+                "id": "s18.rgb_split1",
+                "confidence": 0.753,
+                "start": 10.9333,
+                "end": 10.9667,
+                "easing": "linear",
+                "keyframes": [
+                  {
+                    "t": 10.9333,
+                    "v": 0.0103
+                  }
+                ],
+                "params": {},
+                "type": "rgb_split",
+                "offset": 0.0103
+              },
+              {
+                "id": "s18.pan1",
+                "confidence": 0.765,
+                "start": 10.9333,
+                "end": 11.4667,
+                "easing": "punch",
+                "keyframes": [],
+                "params": {
+                  "fit_r2": 0.8649
+                },
+                "type": "pan",
+                "dx": 0.0721,
+                "dy": -0.0791
+              },
+              {
+                "id": "s18.zoom1",
+                "confidence": 0.885,
+                "start": 10.9424,
+                "end": 11.4667,
+                "easing": "punch",
+                "keyframes": [
+                  {
+                    "t": 10.9424,
+                    "v": 1.0
+                  },
+                  {
+                    "t": 11.0126,
+                    "v": 0.87
+                  },
+                  {
+                    "t": 11.0827,
+                    "v": 0.86
+                  },
+                  {
+                    "t": 11.1528,
+                    "v": 0.8603
+                  },
+                  {
+                    "t": 11.2229,
+                    "v": 0.8608
+                  },
+                  {
+                    "t": 11.2931,
+                    "v": 0.8609
+                  },
+                  {
+                    "t": 11.3632,
+                    "v": 0.8616
+                  },
+                  {
+                    "t": 11.4333,
+                    "v": 0.8935
+                  }
+                ],
+                "params": {
+                  "scale_start": 0.9997,
+                  "fit_r2": 0.9996,
+                  "residual": 0.001,
+                  "inliers": 0.916
+                },
+                "type": "zoom",
+                "scale_from": 1.0,
+                "scale_to": 0.839,
+                "center": [
+                  0.5,
+                  0.5
+                ],
+                "digital": true
+              }
+            ]
+          },
+          {
+            "id": "t18",
+            "confidence": 0.8,
+            "start": 11.4333,
+            "end": 11.4667,
+            "type": "transition",
+            "kind": "zoom",
+            "from_shot": "s18",
+            "to_shot": "s19",
+            "color": null,
+            "on_beat": false,
+            "beat_offset": -0.0911,
+            "params": {
+              "score": 0.624,
+              "threshold": 0.3,
+              "blur_ratio": 0.184,
+              "scale": 1.35
+            }
+          },
+          {
+            "id": "s19",
+            "confidence": 1.0,
+            "start": 11.4667,
+            "end": 11.9667,
+            "type": "shot",
+            "index": 18,
+            "frame_start": 344,
+            "frame_end": 359,
+            "beats": 0.97,
+            "on_beat": false,
+            "beat_offset": -0.0911,
+            "source_group": "C",
+            "look": {
+              "brightness": 0.3772,
+              "contrast": 0.1972,
+              "saturation": 0.2571,
+              "temperature": -0.0579,
+              "tint": -0.0193,
+              "bw": false,
+              "sharpness": 0.8915,
+              "vignette": 0.0,
+              "dominant_color": [
+                78,
+                77,
+                82
+              ]
+            },
+            "layout": {
+              "letterbox_top": 0.0344,
+              "letterbox_bottom": 0.0,
+              "pillarbox_left": 0.0,
+              "pillarbox_right": 0.0,
+              "blur_pad": false,
+              "content_box": [
+                0.0,
+                0.0344,
+                1.0,
+                0.9656
+              ],
+              "split": "none"
+            },
+            "motion": {
+              "magnitude": 0.0098,
+              "camera": "zoom",
+              "zoom_ratio": 0.9226,
+              "pan": [
+                0.0195,
+                -0.0218
+              ],
+              "rotation": -0.1927
+            },
+            "effects": [
+              {
+                "id": "s19.zoom1",
+                "confidence": 0.959,
+                "start": 11.4803,
+                "end": 11.9455,
+                "easing": "punch",
+                "keyframes": [
+                  {
+                    "t": 11.4803,
+                    "v": 1.0
+                  },
+                  {
+                    "t": 11.542,
+                    "v": 0.915
+                  },
+                  {
+                    "t": 11.6037,
+                    "v": 0.91
+                  },
+                  {
+                    "t": 11.6654,
+                    "v": 0.9102
+                  },
+                  {
+                    "t": 11.7271,
+                    "v": 0.9104
+                  },
+                  {
+                    "t": 11.7887,
+                    "v": 0.9106
+                  },
+                  {
+                    "t": 11.8504,
+                    "v": 0.9106
+                  },
+                  {
+                    "t": 11.9121,
+                    "v": 0.9241
+                  }
+                ],
+                "params": {
+                  "scale_start": 1.0,
+                  "fit_r2": 0.9999,
+                  "residual": 0.0008,
+                  "inliers": 0.978
+                },
+                "type": "zoom",
+                "scale_from": 1.0,
+                "scale_to": 0.8878,
+                "center": [
+                  0.5,
+                  0.5
+                ],
+                "digital": true
+              }
+            ]
+          },
+          {
+            "id": "t19",
+            "confidence": 0.687,
+            "start": 11.9667,
+            "end": 12.0,
+            "type": "transition",
+            "kind": "whip",
+            "from_shot": "s19",
+            "to_shot": "s20",
+            "color": null,
+            "on_beat": false,
+            "beat_offset": -0.1077,
+            "params": {
+              "score": 0.57,
+              "threshold": 0.3,
+              "blur_ratio": 0.344,
+              "direction": "right"
+            }
+          },
+          {
+            "id": "s20",
+            "confidence": 1.0,
+            "start": 11.9667,
+            "end": 12.5333,
+            "type": "shot",
+            "index": 19,
+            "frame_start": 359,
+            "frame_end": 376,
+            "beats": 1.1,
+            "on_beat": false,
+            "beat_offset": -0.1077,
+            "source_group": "A",
+            "look": {
+              "brightness": 0.4113,
+              "contrast": 0.2319,
+              "saturation": 0.2625,
+              "temperature": 0.0006,
+              "tint": -0.0101,
+              "bw": false,
+              "sharpness": 0.8559,
+              "vignette": 0.0,
+              "dominant_color": [
+                121,
+                107,
+                100
+              ]
+            },
+            "layout": {
+              "letterbox_top": 0.0,
+              "letterbox_bottom": 0.0,
+              "pillarbox_left": 0.0,
+              "pillarbox_right": 0.0,
+              "blur_pad": false,
+              "content_box": [
+                0.0,
+                0.0,
+                1.0,
+                1.0
+              ],
+              "split": "none"
+            },
+            "motion": {
+              "magnitude": 0.0136,
+              "camera": "zoom",
+              "zoom_ratio": 0.9688,
+              "pan": [
+                -0.0189,
+                0.0258
+              ],
+              "rotation": -1.2575
+            },
+            "effects": [
+              {
+                "id": "s20.rgb_split1",
+                "confidence": 0.602,
+                "start": 12.0,
+                "end": 12.0333,
+                "easing": "linear",
+                "keyframes": [
+                  {
+                    "t": 12.0,
+                    "v": -0.0041
+                  }
+                ],
+                "params": {},
+                "type": "rgb_split",
+                "offset": -0.0041
+              }
+            ]
+          },
+          {
+            "id": "t20",
+            "confidence": 0.569,
+            "start": 12.5333,
+            "end": 12.5667,
+            "type": "transition",
+            "kind": "zoom",
+            "from_shot": "s20",
+            "to_shot": "s21",
+            "color": null,
+            "on_beat": true,
+            "beat_offset": -0.0635,
+            "params": {
+              "score": 1.0,
+              "threshold": 0.3,
+              "blur_ratio": 0.474,
+              "scale": 0.87
+            }
+          },
+          {
+            "id": "s21",
+            "confidence": 1.0,
+            "start": 12.5333,
+            "end": 13.0667,
+            "type": "shot",
+            "index": 20,
+            "frame_start": 376,
+            "frame_end": 392,
+            "beats": 1.03,
+            "on_beat": true,
+            "beat_offset": -0.0635,
+            "source_group": "B",
+            "look": {
+              "brightness": 0.3539,
+              "contrast": 0.2013,
+              "saturation": 0.299,
+              "temperature": -0.0589,
+              "tint": -0.0079,
+              "bw": false,
+              "sharpness": 0.886,
+              "vignette": 0.0,
+              "dominant_color": [
+                44,
+                49,
+                60
+              ]
+            },
+            "layout": {
+              "letterbox_top": 0.0,
+              "letterbox_bottom": 0.0,
+              "pillarbox_left": 0.0,
+              "pillarbox_right": 0.0,
+              "blur_pad": false,
+              "content_box": [
+                0.0,
+                0.0,
+                1.0,
+                1.0
+              ],
+              "split": "none"
+            },
+            "motion": {
+              "magnitude": 0.0082,
+              "camera": "zoom",
+              "zoom_ratio": 0.9275,
+              "pan": [
+                0.0053,
+                -0.0247
+              ],
+              "rotation": 1.4347
+            },
+            "effects": [
+              {
+                "id": "s21.zoom1",
+                "confidence": 0.866,
+                "start": 12.5591,
+                "end": 13.0136,
+                "easing": "punch",
+                "keyframes": [
+                  {
+                    "t": 12.5591,
+                    "v": 1.0
+                  },
+                  {
+                    "t": 12.6193,
+                    "v": 0.9308
+                  },
+                  {
+                    "t": 12.6794,
+                    "v": 0.9249
+                  },
+                  {
+                    "t": 12.7396,
+                    "v": 0.9246
+                  },
+                  {
+                    "t": 12.7998,
+                    "v": 0.9246
+                  },
+                  {
+                    "t": 12.86,
+                    "v": 0.9245
+                  },
+                  {
+                    "t": 12.9201,
+                    "v": 0.9245
+                  },
+                  {
+                    "t": 12.9803,
+                    "v": 0.9307
+                  }
+                ],
+                "params": {
+                  "scale_start": 0.9995,
+                  "fit_r2": 0.9998,
+                  "residual": 0.0012,
+                  "inliers": 0.977
+                },
+                "type": "zoom",
+                "scale_from": 1.0,
+                "scale_to": 0.9082,
+                "center": [
+                  0.5,
+                  0.5
+                ],
+                "digital": true
+              }
+            ]
+          },
+          {
+            "id": "t21",
+            "confidence": 0.689,
+            "start": 13.0333,
+            "end": 13.0667,
+            "type": "transition",
+            "kind": "zoom",
+            "from_shot": "s21",
+            "to_shot": "s22",
+            "color": null,
+            "on_beat": true,
+            "beat_offset": -0.0468,
+            "params": {
+              "score": 1.0,
+              "threshold": 0.3,
+              "blur_ratio": 0.342,
+              "scale": 1.35
+            }
+          },
+          {
+            "id": "s22",
+            "confidence": 1.0,
+            "start": 13.0667,
+            "end": 13.6,
+            "type": "shot",
+            "index": 21,
+            "frame_start": 392,
+            "frame_end": 408,
+            "beats": 1.03,
+            "on_beat": true,
+            "beat_offset": -0.0468,
+            "source_group": "D",
+            "look": {
+              "brightness": 0.437,
+              "contrast": 0.2083,
+              "saturation": 0.2343,
+              "temperature": 0.0234,
+              "tint": -0.0121,
+              "bw": false,
+              "sharpness": 0.8851,
+              "vignette": 0.0,
+              "dominant_color": [
+                150,
+                139,
+                133
+              ]
+            },
+            "layout": {
+              "letterbox_top": 0.0,
+              "letterbox_bottom": 0.0,
+              "pillarbox_left": 0.0,
+              "pillarbox_right": 0.0,
+              "blur_pad": false,
+              "content_box": [
+                0.0,
+                0.0,
+                1.0,
+                1.0
+              ],
+              "split": "none"
+            },
+            "motion": {
+              "magnitude": 0.0142,
+              "camera": "complex",
+              "zoom_ratio": 0.8988,
+              "pan": [
+                0.0414,
+                -0.01
+              ],
+              "rotation": 0.5778
+            },
+            "effects": [
+              {
+                "id": "s22.rgb_split1",
+                "confidence": 0.704,
+                "start": 13.0667,
+                "end": 13.1,
+                "easing": "linear",
+                "keyframes": [
+                  {
+                    "t": 13.0667,
+                    "v": 0.0083
+                  }
+                ],
+                "params": {},
+                "type": "rgb_split",
+                "offset": 0.0083
+              },
+              {
+                "id": "s22.zoom1",
+                "confidence": 0.955,
+                "start": 13.0833,
+                "end": 13.4667,
+                "easing": "punch",
+                "keyframes": [
+                  {
+                    "t": 13.0833,
+                    "v": 1.0
+                  },
+                  {
+                    "t": 13.1333,
+                    "v": 0.905
+                  },
+                  {
+                    "t": 13.1833,
+                    "v": 0.894
+                  },
+                  {
+                    "t": 13.2333,
+                    "v": 0.894
+                  },
+                  {
+                    "t": 13.2833,
+                    "v": 0.8942
+                  },
+                  {
+                    "t": 13.3333,
+                    "v": 0.8945
+                  },
+                  {
+                    "t": 13.3833,
+                    "v": 0.8949
+                  },
+                  {
+                    "t": 13.4333,
+                    "v": 0.8949
+                  }
+                ],
+                "params": {
+                  "scale_start": 0.9999,
+                  "fit_r2": 0.9978,
+                  "residual": 0.0008,
+                  "inliers": 0.98
+                },
+                "type": "zoom",
+                "scale_from": 1.0,
+                "scale_to": 0.8599,
+                "center": [
+                  0.5,
+                  0.0401
+                ],
+                "digital": true
+              },
+              {
+                "id": "s22.speed1",
+                "confidence": 0.75,
+                "start": 13.2333,
+                "end": 13.5333,
+                "easing": "linear",
+                "keyframes": [
+                  {
+                    "t": 13.2333,
+                    "v": 0.7143
+                  },
+                  {
+                    "t": 13.3333,
+                    "v": 0.7143
+                  },
+                  {
+                    "t": 13.4333,
+                    "v": 0.7143
+                  },
+                  {
+                    "t": 13.5,
+                    "v": 0.7143
+                  }
+                ],
+                "params": {
+                  "method": "frame_repeat",
+                  "repeat": 1.4
+                },
+                "type": "speed",
+                "kind": "slowmo",
+                "rate_from": 0.7143,
+                "rate_to": 0.7143
+              }
+            ]
+          },
+          {
+            "id": "t22",
+            "confidence": 0.799,
+            "start": 13.5667,
+            "end": 13.6,
+            "type": "transition",
+            "kind": "zoom",
+            "from_shot": "s22",
+            "to_shot": "s23",
+            "color": null,
+            "on_beat": true,
+            "beat_offset": -0.0301,
+            "params": {
+              "score": 0.598,
+              "threshold": 0.3,
+              "blur_ratio": 0.221,
+              "scale": 1.35
+            }
+          },
+          {
+            "id": "s23",
+            "confidence": 1.0,
+            "start": 13.6,
+            "end": 14.4,
+            "type": "shot",
+            "index": 22,
+            "frame_start": 408,
+            "frame_end": 432,
+            "beats": 1.55,
+            "on_beat": true,
+            "beat_offset": -0.0301,
+            "source_group": "E",
+            "look": {
+              "brightness": 0.3805,
+              "contrast": 0.1993,
+              "saturation": 0.2575,
+              "temperature": -0.067,
+              "tint": -0.0202,
+              "bw": false,
+              "sharpness": 0.8296,
+              "vignette": 0.0,
+              "dominant_color": [
+                19,
+                18,
+                21
+              ]
+            },
+            "layout": {
+              "letterbox_top": 0.0,
+              "letterbox_bottom": 0.0,
+              "pillarbox_left": 0.0,
+              "pillarbox_right": 0.0,
+              "blur_pad": false,
+              "content_box": [
+                0.0,
+                0.0,
+                1.0,
+                1.0
+              ],
+              "split": "none"
+            },
+            "motion": {
+              "magnitude": 0.004,
+              "camera": "zoom",
+              "zoom_ratio": 0.8851,
+              "pan": [
+                0.0309,
+                0.004
+              ],
+              "rotation": -0.3767
+            },
+            "effects": [
+              {
+                "id": "s23.zoom1",
+                "confidence": 0.955,
+                "start": 13.6136,
+                "end": 14.0955,
+                "easing": "punch",
+                "keyframes": [
+                  {
+                    "t": 13.6136,
+                    "v": 1.0
+                  },
+                  {
+                    "t": 13.6777,
+                    "v": 0.9128
+                  },
+                  {
+                    "t": 13.7418,
+                    "v": 0.9078
+                  },
+                  {
+                    "t": 13.8058,
+                    "v": 0.9079
+                  },
+                  {
+                    "t": 13.8699,
+                    "v": 0.9082
+                  },
+                  {
+                    "t": 13.934,
+                    "v": 0.9084
+                  },
+                  {
+                    "t": 13.9981,
+                    "v": 0.9083
+                  },
+                  {
+                    "t": 14.0621,
+                    "v": 0.9082
+                  }
+                ],
+                "params": {
+                  "scale_start": 0.9999,
+                  "fit_r2": 0.9999,
+                  "residual": 0.0009,
+                  "inliers": 0.98
+                },
+                "type": "zoom",
+                "scale_from": 1.0,
+                "scale_to": 0.8858,
+                "center": [
+                  0.5,
+                  0.3799
+                ],
+                "digital": true
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "overlays": [
+    {
+      "id": "txt1",
+      "confidence": 0.7664,
+      "start": 0.2667,
+      "end": 1.2,
+      "type": "text",
+      "text": "区CapCut",
+      "bbox": [
+        0.0709,
+        0.0326,
+        0.0769,
+        0.0321
+      ],
+      "position": "top",
+      "size": 0.0394,
+      "color": [
+        255,
+        254,
+        246
+      ],
+      "outline": false,
+      "animation": "static",
+      "role": "hook",
+      "words": []
+    },
+    {
+      "id": "txt2",
+      "confidence": 0.6355,
+      "start": 1.0,
+      "end": 2.1667,
+      "type": "text",
+      "text": "LI AM",
+      "bbox": [
+        0.2018,
+        0.4026,
+        0.6455,
+        0.1864
+      ],
+      "position": "center",
+      "size": 0.1616,
+      "color": [
+        189,
+        194,
+        204
+      ],
+      "outline": false,
+      "animation": "typewriter",
+      "role": "caption",
+      "words": [
+        {
+          "text": "LI",
+          "start": 1.0,
+          "end": 2.1667
+        },
+        {
+          "text": "AM",
+          "start": 1.0,
+          "end": 2.1667
+        }
+      ]
+    },
+    {
+      "id": "txt3",
+      "confidence": 0.8305,
+      "start": 1.6333,
+      "end": 3.0,
+      "type": "text",
+      "text": "CapCut",
+      "bbox": [
+        0.0732,
+        0.0326,
+        0.2596,
+        0.0321
+      ],
+      "position": "top",
+      "size": 0.0394,
+      "color": [
+        246,
+        252,
+        255
+      ],
+      "outline": false,
+      "animation": "static",
+      "role": "hook",
+      "words": []
+    }
+  ],
+  "patterns": [
+    {
+      "id": "p1",
+      "confidence": 1.0,
+      "type": "pattern",
+      "rule": "cut_every_n_beats",
+      "description": "In the drop, the edit cuts every beat (0.52 s at 116 BPM); 18 of 19 shots follow it.",
+      "start": 4.2,
+      "end": 14.4,
+      "support": 0.947,
+      "params": {
+        "n": 1.0,
+        "seconds": 0.5169,
+        "section": "drop",
+        "shots": 19,
+        "matching": 18
+      }
+    },
+    {
+      "id": "p2",
+      "confidence": 1.0,
+      "type": "pattern",
+      "rule": "pacing_accelerates_at_drop",
+      "description": "Cutting speeds up when the drop hits: 0.49 -> 1.86 cuts per second (3.8x faster).",
+      "start": null,
+      "end": null,
+      "support": 1.0,
+      "params": {
+        "before": 0.4918,
+        "after": 1.8627,
+        "ratio": 3.788
+      }
+    },
+    {
+      "id": "p3",
+      "confidence": 1.0,
+      "type": "pattern",
+      "rule": "effect_on_drop:rgb_split",
+      "description": "A rgb split effect lands right on the drop (4.29 s).",
+      "start": null,
+      "end": null,
+      "support": 1.0,
+      "params": {
+        "kind": "rgb_split",
+        "source": "effect",
+        "drops": [
+          4.2899
+        ]
+      }
+    },
+    {
+      "id": "p4",
+      "confidence": 1.0,
+      "type": "pattern",
+      "rule": "effect_on_drop:zoom",
+      "description": "A zoom transition lands right on the drop (4.29 s).",
+      "start": null,
+      "end": null,
+      "support": 1.0,
+      "params": {
+        "kind": "zoom",
+        "source": "transition",
+        "drops": [
+          4.2899
+        ]
+      }
+    },
+    {
+      "id": "p5",
+      "confidence": 1.0,
+      "type": "pattern",
+      "rule": "hook_text",
+      "description": "Opens with on-screen text (\"区CapCut\") in the first second to hook viewers.",
+      "start": 0.2667,
+      "end": 1.2,
+      "support": 1.0,
+      "params": {
+        "text": "区CapCut",
+        "overlay_start": 0.2667,
+        "overlay_end": 1.2
+      }
+    },
+    {
+      "id": "p6",
+      "confidence": 1.0,
+      "type": "pattern",
+      "rule": "recurring_source",
+      "description": "The edit cuts away and comes back to the same clip 18 times (source groups A, B, C, D).",
+      "start": null,
+      "end": null,
+      "support": 0.957,
+      "params": {
+        "groups": [
+          "A",
+          "B",
+          "C",
+          "D"
+        ],
+        "returns": 18
+      }
+    }
+  ],
+  "stats": {
+    "n_shots": 23,
+    "n_transitions": 20,
+    "mean_shot_duration": 0.6261,
+    "median_shot_duration": 0.5333,
+    "min_shot_duration": 0.4667,
+    "max_shot_duration": 2.0333,
+    "cuts_per_minute": 91.6667,
+    "cut_on_beat_ratio": 0.1364,
+    "hook_duration": 2.1667,
+    "first_cut_time": 0.6,
+    "effect_counts": {
+      "pan": 4,
+      "rgb_split": 9,
+      "rotate": 1,
+      "speed": 2,
+      "zoom": 11
+    },
+    "transition_counts": {
+      "cut": 2,
+      "spin": 1,
+      "whip": 4,
+      "zoom": 15
+    },
+    "text_coverage": 0.1898,
+    "pacing": {
+      "t0": 0.5,
+      "dt": 0.5,
+      "values": [
+        1.0,
+        1.0,
+        1.0,
+        2.0,
+        1.0,
+        0.0,
+        0.0,
+        1.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        1.0,
+        1.0,
+        2.0,
+        2.0
+      ]
+    }
+  },
+  "provenance": {
+    "tool": "editast",
+    "version": "0.1.0",
+    "analyzers": {
+      "shots": "ok",
+      "motion": "ok",
+      "timefx": "ok",
+      "look": "ok",
+      "text": "ok (ocr: rapidocr)",
+      "audio": "ok"
+    },
+    "warnings": [],
+    "timings": {
+      "decode": 3.2137,
+      "shots": 1.4612,
+      "motion": 1.3357,
+      "timefx": 0.4592,
+      "look": 2.4846,
+      "text": 4.1663,
+      "audio": 0.0288,
+      "build": 0.0056,
+      "total": 13.9975
+    },
+    "config": {
+      "analysis_long_side": 320,
+      "target_fps": null,
+      "max_fps": 60.0,
+      "max_duration": 300.0,
+      "audio_sr": 22050,
+      "beat_tolerance": 0.07,
+      "ocr": true,
+      "text_fps": 3.0,
+      "text_long_side": 720,
+      "enabled": {},
+      "params": {}
+    }
+  }
+}

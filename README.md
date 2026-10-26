@@ -1,6 +1,6 @@
-![editast on a BMW M4 car edit: the video plays on the left with its Edit AST underneath, and the HTML report on the right shows the beat grid, cuts landing on beats, speed ramps, zooms, pans and the end-card text](docs/car-edit-demo.gif)
+![editast on a vertical BMW car edit: the video plays on the left, and the HTML report on the right follows a playhead through one cut per beat, zoom and whip transitions, RGB-split hits and the typed-out title, with the Edit AST scrolling underneath](docs/car-edit-demo.gif)
 
-<sub>A [BMW M4 edit by Revix Edits](https://www.youtube.com/shorts/YFNSDdrElfc) (1.1M views): 136 BPM, 90% of cuts on the beat, and cutting 5.7× faster after the drop ([its EditScript](examples/youtube-car-edits/youtube_YFNSDdrElfc.edit)). Rendered with Remotion; see [demo/](demo).</sub>
+<sub>A [BMW edit by urboyliam](https://www.youtube.com/shorts/N-va3tJzyT0): 116 BPM, and after the drop at 4.3 s it cuts on every beat (18 of 19 shots), each cut about 0.1 s ahead of the beat ([its EditScript](examples/demo-car-edit/youtube_N-va3tJzyT0.edit)). Rendered with Remotion; see [demo/](demo).</sub>
 
 # Video-to-AST
 

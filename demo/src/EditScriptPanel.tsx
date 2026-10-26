@@ -3,7 +3,7 @@ import { clamp01, easeInOut, theme } from "./theme";
 
 const LINE_H = 27;
 const CONTEXT_ROWS = 2; // lines kept above the current shot
-const SCROLL_SECONDS = 0.4;
+const SCROLL_SECONDS = 0.25;
 const CUT_FLASH = 0.15; // seconds a zero-length cut stays lit
 
 type Line = { text: string; kind: string; a: number | null; b: number | null };

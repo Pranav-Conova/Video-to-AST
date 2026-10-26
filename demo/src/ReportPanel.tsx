@@ -8,7 +8,7 @@ import { clamp01, easeInOut, theme } from "./theme";
 // span contains it.
 
 const SVG_NS = "http://www.w3.org/2000/svg";
-const PAGE_W = 640; // report px the page is laid out at; wider than the visible part
+const PAGE_W = 1100; // report px the page is laid out at; wider than the visible part
 const MARGIN = 6; // report px kept around the timeline
 const BELOW = 3; // report px kept below the last lane: half the gap, so the next lane stays hidden
 const LEAD = 36; // report px of timeline left of the playhead after a page turn

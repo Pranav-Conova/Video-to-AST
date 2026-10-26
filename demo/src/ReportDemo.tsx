@@ -1,5 +1,10 @@
 import { Video } from "@remotion/media";
-import { AbsoluteFill, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import {
+  AbsoluteFill,
+  staticFile,
+  useCurrentFrame,
+  useVideoConfig,
+} from "remotion";
 import { EditScriptPanel } from "./EditScriptPanel";
 import { ReportPanel } from "./ReportPanel";
 import { theme } from "./theme";
@@ -14,7 +19,7 @@ export type ReportDemoProps = {
   credit: string; // shown above the video
   start: number; // seconds of the source shown
   end: number;
-  videoWidth?: number; // of the left column; the report gets the rest
+  videoWidth?: number; // landscape videos: the left column's width (portrait videos fill its height)
   // Filled in by calculateMetadata.
   scriptText?: string;
   aspect?: number;
@@ -23,6 +28,7 @@ export type ReportDemoProps = {
 
 const PAD = 28;
 const LABEL_H = 36;
+const SCRIPT_H = 200; // EditScript panel under the report, in the portrait layout
 
 const Label: React.FC<{
   x: number;
@@ -97,17 +103,53 @@ export const ReportDemo: React.FC<ReportDemoProps> = (props) => {
 
   const aspect = props.aspect ?? 16 / 9;
   const [lbTop, lbBottom] = props.letterbox ?? [0, 0];
-  const leftW = props.videoWidth ?? 580;
-  const fullH = leftW / aspect; // the whole frame, bars included
-  const videoH = Math.round(fullH * (1 - lbTop - lbBottom));
+  const shown = 1 - lbTop - lbBottom; // the part of the frame between the bars
   const videoTop = PAD + LABEL_H;
-  const scriptTop = videoTop + videoH + 20 + LABEL_H;
+  const bottom = height - PAD;
+  // Landscape: the video over the EditScript on the left, the report on the right.
+  // Portrait: the video takes the left column's full height, and the EditScript sits under
+  // the report.
+  const portrait = aspect < 1;
+  const videoH = portrait
+    ? bottom - videoTop
+    : Math.round(((props.videoWidth ?? 580) / aspect) * shown);
+  const fullH = videoH / shown; // the whole frame, bars included
+  const leftW = portrait
+    ? Math.round(fullH * aspect)
+    : (props.videoWidth ?? 580);
   const rightX = PAD + leftW + PAD;
   const rightW = width - rightX - PAD;
+  const script = portrait
+    ? { left: rightX, top: bottom - SCRIPT_H, width: rightW, height: SCRIPT_H }
+    : {
+        left: PAD,
+        top: videoTop + videoH + 20 + LABEL_H,
+        width: leftW,
+        height: bottom - (videoTop + videoH + 20 + LABEL_H),
+      };
+  const report = {
+    left: rightX,
+    top: videoTop,
+    width: rightW,
+    height: (portrait ? script.top - 20 - LABEL_H : bottom) - videoTop,
+  };
 
   return (
-    <AbsoluteFill style={{ backgroundColor: theme.page, color: theme.ink, fontFamily: theme.ui }}>
-      <Label x={PAD} y={PAD} w={leftW} title="Source" detail={props.credit} right={timecode(t)} />
+    <AbsoluteFill
+      style={{
+        backgroundColor: theme.page,
+        color: theme.ink,
+        fontFamily: theme.ui,
+      }}
+    >
+      <Label
+        x={PAD}
+        y={PAD}
+        w={leftW}
+        title="Source"
+        detail={props.credit}
+        right={timecode(t)}
+      />
       <div
         style={{
           position: "absolute",
@@ -124,24 +166,39 @@ export const ReportDemo: React.FC<ReportDemoProps> = (props) => {
           src={staticFile(props.video)}
           muted
           trimBefore={Math.round(props.start * fps)}
-          style={{ position: "absolute", left: 0, top: -fullH * lbTop, width: leftW, height: fullH }}
+          style={{
+            position: "absolute",
+            left: 0,
+            top: -fullH * lbTop,
+            width: leftW,
+            height: fullH,
+          }}
         />
       </div>
 
-      <Label x={PAD} y={scriptTop - LABEL_H} w={leftW} title="Edit AST" detail="EditScript at the playhead" />
-      <EditScriptPanel
-        text={props.scriptText ?? ""}
-        t={t}
-        style={{ left: PAD, top: scriptTop, width: leftW, height: height - PAD - scriptTop }}
+      <Label
+        x={script.left}
+        y={script.top - LABEL_H}
+        w={script.width}
+        title="Edit AST"
+        detail="EditScript at the playhead"
       />
+      <EditScriptPanel text={props.scriptText ?? ""} t={t} style={script} />
 
-      <Label x={rightX} y={PAD} w={rightW} title="HTML report" detail={props.command} mono />
+      <Label
+        x={rightX}
+        y={PAD}
+        w={rightW}
+        title="HTML report"
+        detail={props.command}
+        mono
+      />
       <ReportPanel
         src={props.report}
         t={t}
         start={props.start}
         lastLane={props.lastLane}
-        style={{ left: rightX, top: videoTop, width: rightW, height: height - PAD - videoTop }}
+        style={report}
       />
     </AbsoluteFill>
   );

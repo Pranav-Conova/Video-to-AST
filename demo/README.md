@@ -5,8 +5,8 @@ The two GIFs in the main README are rendered from this
 
 | GIF | Composition | Shows |
 |---|---|---|
+| `docs/car-edit-demo.gif` | `CarEdit` | all 14.4 s of a vertical BMW edit by urboyliam |
 | `docs/demo.gif` | `Dune` | 24 s of the Dune trailer (72.7–96.9 s) |
-| `docs/car-edit-demo.gif` | `CarEdit` | all 22.6 s of a BMW M4 car edit by Revix Edits |
 
 Each plays the video next to its compact EditScript and the real HTML report from
 `editast analyze`, which it loads in an iframe. On every frame it moves a playhead
@@ -25,7 +25,7 @@ python prepare.py https://www.youtube.com/watch?v=n9xhJrPXop4 --name dune_traile
 npm run frames      # renders out/frames/*.png at 880x550
 python make_gif.py  # writes ../docs/demo.gif
 
-python prepare.py https://www.youtube.com/shorts/YFNSDdrElfc --name car_edit
+python prepare.py https://www.youtube.com/shorts/N-va3tJzyT0 --name car_edit
 npm run frames:car
 python make_gif.py out/car-frames ../docs/car-edit-demo.gif
 ```
@@ -39,14 +39,15 @@ stream; an AV1 download gives the same cuts, with a few motion effects that diff
 
 The props in `src/Root.tsx` choose the files, the part of the video shown (`start`
 and `end`), the last report lane shown (`lastLane`; lanes below it are cropped so
-the text stays readable) and the video's width (`videoWidth`; full-frame footage in
-motion makes the GIF large). To use another video, run `prepare.py` on it and add a
-composition. The layout assumes a landscape video.
+the text stays readable) and, for a landscape video, its width (`videoWidth`;
+full-frame footage in motion makes the GIF large). A portrait video fills the left
+column's height, and its EditScript moves under the report. To use another video,
+run `prepare.py` on it and add a composition.
 
 ## Licences
 
 The videos belong to their owners: the Dune trailer to Warner Bros. Pictures and
-Legendary, the BMW M4 edit to Revix Edits. The GIFs show them to illustrate the
+Legendary, the BMW edit to urboyliam. The GIFs show them to illustrate the
 analysis; they are not covered by this repository's licence. Remotion is free for
 individuals and companies of up to 3 people; larger companies need a
 [company license](https://www.remotion.dev/license).
