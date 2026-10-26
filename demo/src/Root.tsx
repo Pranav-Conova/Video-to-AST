@@ -44,19 +44,20 @@ export const RemotionRoot: React.FC = () => {
     <Composition
       id="ReportDemo"
       component={ReportDemo}
-      durationInFrames={581}
+      durationInFrames={580}
       fps={24}
       width={1280}
       height={800}
       defaultProps={{
-        video: "sintel_trailer.mp4",
-        report: "sintel_trailer.report.html",
-        edit: "sintel_trailer.edit.json",
-        script: "sintel_trailer.compact.edit",
-        command: "editast analyze sintel_trailer.mp4",
-        credit: "Sintel trailer · © Blender Foundation · CC-BY 3.0",
-        start: 12.7,
-        end: 36.9,
+        video: "dune_trailer.mp4",
+        report: "dune_trailer.report.html",
+        edit: "dune_trailer.edit.json",
+        script: "dune_trailer.compact.edit",
+        command: "editast analyze dune_trailer.mp4",
+        credit: "Dune trailer · © Warner Bros. Pictures & Legendary",
+        lastLane: "energy",
+        start: 72.7,
+        end: 96.9,
       }}
       calculateMetadata={calculateMetadata}
     />

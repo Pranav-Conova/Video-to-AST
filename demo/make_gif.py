@@ -17,7 +17,7 @@ from pathlib import Path
 import imageio_ffmpeg
 
 HERE = Path(__file__).resolve().parent
-FPS = 24  # the composition's frame rate, which is the Sintel trailer's
+FPS = 24  # the composition's frame rate: the trailer's 23.976, rounded
 GIF_FPS = 12
 OUT = HERE.parent / "docs" / "demo.gif"
 

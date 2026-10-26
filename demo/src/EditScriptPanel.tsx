@@ -36,7 +36,8 @@ const isActive = (line: Line, t: number) => {
   return t >= line.a && t < line.b;
 };
 
-const TOKEN = /("(?:[^"\\]|\\.)*")|(#[0-9A-Fa-f]{6}\b)|((?<![A-Za-z0-9_])[+-]?\d+(?:\.\d+)?(?:s|x|deg)?(?![A-Za-z0-9_]))/g;
+const TOKEN =
+  /("(?:[^"\\]|\\.)*")|(#[0-9A-Fa-f]{6}\b)|((?<![A-Za-z0-9_])[+-]?\d+(?:\.\d+)?(?:s|x|deg)?(?![A-Za-z0-9_]))/g;
 
 // Same colours as the EditScript view in the HTML report.
 const Highlighted: React.FC<{ text: string }> = ({ text }) => {
@@ -44,7 +45,12 @@ const Highlighted: React.FC<{ text: string }> = ({ text }) => {
   const rest = text.slice(indent.length);
   const kw = /^[A-Za-z_]\w*/.exec(rest)?.[0] ?? "";
   const parts: React.ReactNode[] = [indent];
-  if (kw) parts.push(<span key="kw" style={{ color: theme.purple, fontWeight: 600 }}>{kw}</span>);
+  if (kw)
+    parts.push(
+      <span key="kw" style={{ color: theme.purple, fontWeight: 600 }}>
+        {kw}
+      </span>,
+    );
   const body = rest.slice(kw.length);
   let pos = 0;
   for (const m of body.matchAll(TOKEN)) {
@@ -60,18 +66,24 @@ const Highlighted: React.FC<{ text: string }> = ({ text }) => {
   return <>{parts}</>;
 };
 
-export const EditScriptPanel: React.FC<{ text: string; t: number; style: React.CSSProperties }> = ({
-  text,
-  t,
-  style,
-}) => {
+export const EditScriptPanel: React.FC<{
+  text: string;
+  t: number;
+  style: React.CSSProperties;
+}> = ({ text, t, style }) => {
   const lines = useMemo(() => parse(text), [text]);
   const shotRows = lines.flatMap((l, i) => (l.kind === "shot" ? [i] : []));
   const cur = shotRows.findIndex((i) => isActive(lines[i], t));
-  const k = cur >= 0 ? cur : Math.max(0, shotRows.findIndex((i) => (lines[i].a ?? 0) > t) - 1);
-  const row = (j: number) => Math.max(0, shotRows[Math.max(0, j)] - CONTEXT_ROWS) * LINE_H;
+  const k =
+    cur >= 0
+      ? cur
+      : Math.max(0, shotRows.findIndex((i) => (lines[i].a ?? 0) > t) - 1);
+  const row = (j: number) =>
+    Math.max(0, shotRows[Math.max(0, j)] - CONTEXT_ROWS) * LINE_H;
   // Scroll to the new shot over SCROLL_SECONDS after it starts.
-  const p = easeInOut(clamp01((t - (lines[shotRows[k]]?.a ?? 0)) / SCROLL_SECONDS));
+  const p = easeInOut(
+    clamp01((t - (lines[shotRows[k]]?.a ?? 0)) / SCROLL_SECONDS),
+  );
   const y = row(k - 1) + (row(k) - row(k - 1)) * p;
 
   return (
@@ -85,30 +97,47 @@ export const EditScriptPanel: React.FC<{ text: string; t: number; style: React.C
         ...style,
       }}
     >
-      <div style={{ position: "absolute", left: 0, right: 0, top: 12 - y }}>
-        {lines.map((line, i) => {
-          const current = i === shotRows[k];
-          const active = isActive(line, t);
-          return (
-            <div
-              key={i}
-              style={{
-                height: LINE_H,
-                lineHeight: `${LINE_H}px`,
-                paddingLeft: 16,
-                whiteSpace: "pre",
-                fontFamily: theme.mono,
-                fontSize: 16,
-                color: theme.ink2,
-                opacity: active || current ? 1 : 0.45,
-                backgroundColor: current ? "rgba(57,135,229,.20)" : active ? "rgba(255,255,255,.06)" : undefined,
-                boxShadow: current ? `inset 3px 0 0 ${theme.blue}` : undefined,
-              }}
-            >
-              <Highlighted text={line.text} />
-            </div>
-          );
-        })}
+      {/* Lines fade out at the top and bottom edges instead of being cut in half. */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          maskImage: `linear-gradient(transparent, #000 ${LINE_H}px, #000 calc(100% - ${LINE_H}px), transparent)`,
+        }}
+      >
+        <div
+          style={{ position: "absolute", left: 0, right: 0, top: LINE_H - y }}
+        >
+          {lines.map((line, i) => {
+            const current = i === shotRows[k];
+            const active = isActive(line, t);
+            return (
+              <div
+                key={i}
+                style={{
+                  height: LINE_H,
+                  lineHeight: `${LINE_H}px`,
+                  paddingLeft: 16,
+                  whiteSpace: "pre",
+                  fontFamily: theme.mono,
+                  fontSize: 16,
+                  color: theme.ink2,
+                  opacity: active || current ? 1 : 0.45,
+                  backgroundColor: current
+                    ? "rgba(57,135,229,.20)"
+                    : active
+                      ? "rgba(255,255,255,.06)"
+                      : undefined,
+                  boxShadow: current
+                    ? `inset 3px 0 0 ${theme.blue}`
+                    : undefined,
+                }}
+              >
+                <Highlighted text={line.text} />
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

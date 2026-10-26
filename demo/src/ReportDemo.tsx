@@ -10,6 +10,7 @@ export type ReportDemoProps = {
   edit: string;
   script: string;
   command: string; // shown above the report
+  lastLane: string; // the report shows its timeline lanes down to this one
   credit: string; // shown above the video
   start: number; // seconds of the source shown
   end: number;
@@ -138,6 +139,7 @@ export const ReportDemo: React.FC<ReportDemoProps> = (props) => {
         src={props.report}
         t={t}
         start={props.start}
+        lastLane={props.lastLane}
         style={{ left: rightX, top: videoTop, width: rightW, height: height - PAD - videoTop }}
       />
     </AbsoluteFill>

@@ -1,6 +1,6 @@
-![editast on the Sintel trailer: the video plays on the left with its Edit AST scrolling underneath, and the HTML timeline report on the right follows a playhead through cuts, fades, zooms, pans, rotations, a slow-motion shot and a dissolve](docs/demo.gif)
+![editast on the Dune trailer: the video plays on the left with its Edit AST scrolling underneath, and the HTML timeline report on the right follows a playhead through cuts, flashes, fades, zooms, pans and rotations](docs/demo.gif)
 
-<sub>The Sintel trailer (© Blender Foundation, CC-BY 3.0) next to its Edit AST and HTML report, in sync. Rendered with Remotion; see [demo/](demo).</sub>
+<sub>24 s of the Dune trailer (© Warner Bros. Pictures & Legendary) next to its Edit AST and HTML report, in sync. Rendered with Remotion; see [demo/](demo).</sub>
 
 # Video-to-AST
 

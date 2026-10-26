@@ -2,14 +2,15 @@ import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { IFrame, staticFile, useDelayRender } from "remotion";
 import { clamp01, easeInOut, theme } from "./theme";
 
-// Shows the real HTML report in an iframe, cropped and zoomed so its timeline lanes (down to
-// the pacing curve) fill the panel. Each frame scrolls the timeline a page at a time (like an
+// Shows the real HTML report in an iframe, cropped and zoomed so its timeline lanes, down to
+// the one named `lastLane`, fill the panel. Each frame scrolls the timeline a page at a time (like an
 // editor following its playhead), draws the playhead, and outlines every block whose time
 // span contains it.
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const PAGE_W = 640; // report px the page is laid out at; wider than the visible part
 const MARGIN = 6; // report px kept around the timeline
+const BELOW = 3; // report px kept below the last lane: half the gap, so the next lane stays hidden
 const LEAD = 36; // report px of timeline left of the playhead after a page turn
 const TAIL = 56; // a page turns when the playhead gets this close to the right edge
 const TURN_SECONDS = 0.4;
@@ -43,7 +44,7 @@ const span = (tip: string): [number, number, boolean] | null => {
   return d ? [parseFloat(d[1]), parseFloat(d[1]), true] : null;
 };
 
-const measure = (doc: Document, panelW: number, panelH: number): Measured | null => {
+const measure = (doc: Document, lastLane: string, panelW: number, panelH: number): Measured | null => {
   const svg = doc.querySelector<SVGSVGElement>("svg.lanes");
   const scroller = doc.querySelector<HTMLElement>(".scroll");
   const tl = doc.querySelector<HTMLElement>(".tl");
@@ -59,9 +60,11 @@ const measure = (doc: Document, panelW: number, panelH: number): Measured | null
   const overlay = doc.createElementNS(SVG_NS, "g");
   svg.append(overlay);
   const tlBox = tl.getBoundingClientRect();
-  const last = doc.querySelector('g.curve[data-name="pacing"]') ?? doc.querySelector('g.curve[data-name="energy"]');
-  const bottom = (last ?? svg).getBoundingClientRect().bottom;
-  const zoom = panelH / (bottom - tlBox.top + 2 * MARGIN);
+  // Lane labels and lane groups come in the same order.
+  const labels = [...doc.querySelectorAll("svg.labels text.lane")].map((n) => n.textContent);
+  const lanes = svg.querySelectorAll(":scope > g[transform]");
+  const last = lanes[labels.indexOf(lastLane)] ?? svg;
+  const zoom = panelH / (last.getBoundingClientRect().bottom - tlBox.top + MARGIN + BELOW);
   const viewW = panelW / zoom - MARGIN - (scroller.getBoundingClientRect().left - tlBox.left);
   return {
     pps: parseFloat(svg.dataset.pps ?? "60"),
@@ -103,8 +106,9 @@ export const ReportPanel: React.FC<{
   src: string;
   t: number;
   start: number;
+  lastLane: string;
   style: React.CSSProperties & { width: number; height: number };
-}> = ({ src, t, start, style }) => {
+}> = ({ src, t, start, lastLane, style }) => {
   const ref = useRef<HTMLIFrameElement>(null);
   const { delayRender, continueRender, cancelRender } = useDelayRender();
   const [handle] = useState(() => delayRender("Measuring the report timeline"));
@@ -117,11 +121,11 @@ export const ReportPanel: React.FC<{
     const css = doc.createElement("style");
     css.textContent = CAPTURE_CSS;
     doc.head.append(css);
-    const measured = measure(doc, style.width - 2, style.height - 2); // inside the border
+    const measured = measure(doc, lastLane, style.width - 2, style.height - 2); // inside the border
     if (!measured) return cancelRender(new Error(`${src} has no timeline`));
     setM(measured);
     continueRender(handle);
-  }, [cancelRender, continueRender, handle, src, style.width, style.height]);
+  }, [cancelRender, continueRender, handle, src, lastLane, style.width, style.height]);
 
   useLayoutEffect(() => {
     if (!m) return;
