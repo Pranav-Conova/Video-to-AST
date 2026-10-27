@@ -11,6 +11,7 @@ Then replay that edit on **your own footage and music**.
 [![Tests](https://img.shields.io/badge/tests-385%20passing-brightgreen)](#-accuracy)
 [![Benchmark](https://img.shields.io/badge/benchmark-0.994%20overall-blueviolet)](#-accuracy)
 [![Runs offline](https://img.shields.io/badge/runs-100%25%20offline%20on%20CPU-orange)](#-install)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-ff69b4)](#-contributing)
 [![GitHub stars](https://img.shields.io/github/stars/Pranav-Conova/video-reverse-engineer?style=social)](https://github.com/Pranav-Conova/video-reverse-engineer/stargazers)
 
@@ -267,6 +268,10 @@ If you change an analyzer, please include the `editast bench` scores before and 
 ## ⚖️ A note on content
 
 This tool analyzes the *structure* of an edit. The example folders contain only Edit ASTs, never the original videos, because those belong to their creators. Please respect creators' rights and platform terms when downloading and analyzing videos.
+
+## 📄 License
+
+[MIT](LICENSE) © 2026 Pranav T
 
 ## ⭐ Star history
 

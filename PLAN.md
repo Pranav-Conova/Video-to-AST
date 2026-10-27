@@ -1,4 +1,4 @@
-# editast — plan
+# Video Reverse Engineer (`editast`): plan
 
 Reverse-engineer viral short-form edits (TikTok / Reels / Shorts, beat-synced
 "velocity" car edits, caption-driven talking heads) into an **Abstract Syntax

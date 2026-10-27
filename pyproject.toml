@@ -5,9 +5,19 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "editast"
 version = "0.1.0"
-description = "Reverse-engineer viral short-form video edits into an Abstract Syntax Tree (and render new videos from it)."
+description = "Video Reverse Engineer: reverse-engineer any viral video edit (TikTok, Reels, Shorts, trailers) into an Abstract Syntax Tree, and re-render it with your own footage and music."
 readme = "README.md"
 requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "Pranav T" }]
+keywords = ["reverse-engineering", "video-editing", "video-analysis", "computer-vision", "beat-detection", "ast", "tiktok", "youtube-shorts", "instagram-reels"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+]
 dependencies = [
     "numpy>=1.26",
     "scipy>=1.11",
@@ -16,6 +26,11 @@ dependencies = [
     "pydantic>=2.6",
     "rich>=13",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Pranav-Conova/video-reverse-engineer"
+Repository = "https://github.com/Pranav-Conova/video-reverse-engineer"
+Issues = "https://github.com/Pranav-Conova/video-reverse-engineer/issues"
 
 [project.optional-dependencies]
 ocr = ["rapidocr-onnxruntime>=1.3"]
