@@ -5,7 +5,9 @@ import { clamp01, easeInOut, theme } from "./theme";
 // Shows the real HTML report in an iframe, cropped and zoomed so its timeline lanes, down to
 // the one named `lastLane`, fill the panel. Each frame scrolls the timeline a page at a time (like an
 // editor following its playhead), draws the playhead, and outlines every block whose time
-// span contains it.
+// span contains it. The lanes move with a transform rather than scrollLeft: the browser caps
+// scrollLeft at the scroller's width in the page, which is wider than the part shown, so the
+// last page would never come into view.
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const PAGE_W = 1100; // report px the page is laid out at; wider than the visible part
@@ -30,7 +32,7 @@ type Measured = {
   maxScroll: number;
   height: number;
   items: Item[];
-  scroller: HTMLElement;
+  lanes: SVGSVGElement;
   overlay: SVGGElement;
 };
 
@@ -73,10 +75,10 @@ const measure = (doc: Document, lastLane: string, panelW: number, panelH: number
     left: tlBox.left,
     top: tlBox.top,
     viewW,
-    maxScroll: scroller.scrollWidth - viewW,
+    maxScroll: Math.max(0, box.width - viewW),
     height: box.height,
     items,
-    scroller,
+    lanes: svg,
     overlay,
   };
 };
@@ -130,7 +132,7 @@ export const ReportPanel: React.FC<{
   useLayoutEffect(() => {
     if (!m) return;
     const doc = m.overlay.ownerDocument;
-    m.scroller.scrollLeft = pageScroll(m, t, start);
+    m.lanes.style.transform = `translateX(${-pageScroll(m, t, start)}px)`;
     const marks: Element[] = [];
     for (const it of m.items) {
       const instant = it.b - it.a < 1e-6;
