@@ -5,7 +5,8 @@ Commands
 ``analyze SOURCE``      video file or URL -> ``<stem>.edit.json``, ``<stem>.edit`` (EditScript)
                         and ``<stem>.report.html``; prints the tree and a summary.
 ``show FILE``           print a saved edit (``.json`` or ``.edit``) as tree / dsl / compact / json / summary.
-``render TEMPLATE``     replay an edit over your own clips (optionally retimed to new music).
+``render TEMPLATE``     replay an edit over your own clips (optionally retimed or fitted to new music).
+``fit SONG TEMPLATES``  fit analysed edits to a song (tempo, drop) and write the best one's AST.
 ``bench``               synthetic benchmark: generate edits with a known AST, analyse, score.
 ``compare A B``         structural similarity of two edits, or a full score with ``--truth``.
 ``schema``              JSON schema of the Edit AST.
@@ -263,39 +264,112 @@ def cmd_render(args: argparse.Namespace, ui: _Ui) -> int:
     music = Path(args.music) if args.music else None
     if music is not None and not music.is_file():
         raise CliError(f"no such music file: {music}")
-    if args.retime:
-        if music is None:
-            raise CliError("--retime needs --music")
-        bpm, offset = _music_grid(music)
+    if (args.retime or args.fit) and music is None:
+        raise CliError(f"{'--fit' if args.fit else '--retime'} needs --music")
+    music_start = args.music_start
+    if args.fit:
+        fitted = _fit_one(edit, _song(music), _stem(Path(args.template)), ui)
+        edit, music_start = fitted.edit, fitted.song_start
+    elif args.retime:
+        song = _song(music).music
+        offset = song.beat_offset if song.beat_offset is not None else (song.beats[0] if song.beats else 0.0)
         old = edit.music.bpm if edit.music is not None else None
-        ui.info(f"retiming {f'{old:.1f}' if old else 'the edit'} -> {bpm:.1f} BPM (first beat {offset:.2f} s)")
-        edit = compiler.retime_edit(edit, bpm, offset)
+        ui.info(f"retiming {f'{old:.1f}' if old else 'the edit'} -> {song.bpm:.1f} BPM (first beat {offset:.2f} s)")
+        edit = compiler.retime_edit(edit, float(song.bpm), float(offset))
     out = Path(args.output) if args.output else Path("out") / f"{_stem(Path(args.template))}.render.mp4"
     path = compiler.render_edit(edit, clips, out, music=music, size=args.size, fps=args.fps,
-                                progress=ui.progress("render"))
+                                progress=ui.progress("render"), music_start=music_start)
     ui.out.print(Text(f"wrote {path}"))
     return 0
 
 
-def _music_grid(music: Path) -> tuple[float, float]:
-    """``(bpm, first beat seconds)`` of a song, via the audio analyzer."""
-    from editast.context import context_from_arrays
-    from editast.media import read_audio
+def _song(music: Path) -> Any:
+    """The song's music analysis (an :class:`editast.fit.Song`)."""
+    fit = _require("editast.fit", "music analysis")
+    try:
+        return fit.analyze_song(music)
+    except ValueError as exc:
+        raise CliError(str(exc)) from exc
 
-    audio_mod = _require("editast.analyzers.audio", "--retime (tempo detection)")
-    sr = AnalysisConfig().audio_sr
-    samples = read_audio(music, sr=sr)
-    if samples.size == 0:
-        raise CliError(f"{music} has no audio")
-    # A one-frame dummy video: the audio analyzer then uses the whole song as its timeline.
-    ctx = context_from_arrays(np.zeros((1, 16, 16, 3), np.uint8), fps=30.0, audio=samples, sr=sr, source=str(music))
-    music_info = audio_mod.analyze_audio(ctx).music
-    if music_info is None or not music_info.bpm:
-        raise CliError(f"could not detect a tempo in {music}")
-    offset = music_info.beat_offset
-    if offset is None:
-        offset = music_info.beats[0] if music_info.beats else 0.0
-    return float(music_info.bpm), float(offset)
+
+def _fit_one(edit: Edit, song: Any, name: str, ui: _Ui) -> Any:
+    fit = _require("editast.fit", "music fitting")
+    try:
+        fitted = fit.fit_edit(edit, song, name)
+    except ValueError as exc:
+        raise CliError(str(exc)) from exc
+    _report_fit(fitted, song, ui)
+    return fitted
+
+
+def _report_fit(fitted: Any, song: Any, ui: _Ui) -> None:
+    m = song.music
+    drops = ", ".join(f"{d.time:.1f} s" for d in m.drops) or "none"
+    ui.info(f"song: {m.bpm:.1f} BPM, {song.duration:.1f} s, drops at {drops}")
+    where = f"its drop on the song's drop at {fitted.drop:.2f} s" if fitted.drop is not None else "no drop aligned"
+    ui.info(f"fitted {fitted.template or 'the template'} at {fitted.tempo:.1f} BPM from {fitted.song_start:.2f} s "
+            f"into the song, {where}")
+    for note in fitted.notes:
+        ui.warn(note)
+
+
+def cmd_fit(args: argparse.Namespace, ui: _Ui) -> int:
+    fit = _require("editast.fit", "music fitting")
+    music = Path(args.song)
+    if not music.is_file():
+        raise CliError(f"no such music file: {music}")
+    templates = [(_stem(path), _load_edit(str(path))) for path in _collect_edits(args.templates)]
+    if not templates:
+        raise CliError("no edit files (.edit.json or .edit) in the templates given")
+    song = _song(music)
+    fits = fit.best_fit(templates, song)
+    if not fits:
+        raise CliError("none of the templates has a tempo to fit")
+    bpm = {name: e.music.bpm for name, e in templates if e.music is not None}
+    table = Table(box=box.SIMPLE, title=f"Templates fitted to {music.name}")
+    for col in ("template", "cost", "BPM", "song from", "drop", "trimmed", "past song end"):
+        table.add_column(col, justify="left" if col == "template" else "right", no_wrap=True)
+    for f in fits[: args.top]:
+        table.add_row(escape(f.template), f"{f.cost:.2f}", f"{bpm[f.template]:.0f} -> {f.tempo:.0f}",
+                      f"{f.song_start:.2f} s", f"{f.drop:.2f} s" if f.drop is not None else "-",
+                      f"{f.trimmed:.2f} s", f"{f.overrun:.2f} s")
+    ui.out.print(table)
+    best = fits[0]
+    _report_fit(best, song, ui)
+    stem = f"{_stem(music)}.{best.template}"
+    out_dir = Path(args.output) if args.output else Path("out") / "fit"
+    written = [best.edit.save(out_dir / f"{stem}.edit.json")]
+    try:
+        printer = _require("editast.lang.printer", "EditScript output")
+        dsl = out_dir / f"{stem}.edit"
+        dsl.write_text(printer.to_dsl(best.edit), encoding="utf-8")
+        written.append(dsl)
+    except Exception as exc:
+        ui.warn(f"skipped {stem}.edit: {_reason(exc)}")
+    try:
+        html = _require("editast.report.html", "the HTML report")
+        written.append(Path(html.write_report(best.edit, out_dir / f"{stem}.report.html")))
+    except Exception as exc:
+        ui.warn(f"skipped {stem}.report.html: {_reason(exc)}")
+    for path in written:
+        ui.out.print(Text(f"wrote {path}"))
+    ui.info(f"render it: editast render {written[0]} --clips YOUR_CLIPS --music {music} "
+            f"--music-start {best.song_start:.2f}")
+    return 0
+
+
+def _collect_edits(paths: Sequence[str]) -> list[Path]:
+    """Edit files from file and folder arguments (folders: ``*.edit.json``, recursively)."""
+    out: list[Path] = []
+    for item in paths:
+        p = Path(item)
+        if p.is_dir():
+            out += sorted(p.rglob("*.edit.json"))
+        elif p.is_file():
+            out.append(p)
+        else:
+            raise CliError(f"no such file or folder: {p}")
+    return out
 
 
 def cmd_bench(args: argparse.Namespace, ui: _Ui) -> int:
@@ -477,10 +551,22 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--clips", nargs="+", required=True, metavar="PATH", help="video files and/or folders")
     p.add_argument("--music", metavar="FILE", help="audio track to mux into the output")
     p.add_argument("--retime", action="store_true", help="move the edit onto the tempo grid of --music")
+    p.add_argument("--fit", action="store_true",
+                   help="fit the edit to --music: its tempo grid, with the edit's drop on a drop of the song")
+    p.add_argument("--music-start", type=float, default=0.0, metavar="S",
+                   help="start --music S seconds in (as printed by `editast fit`)")
     p.add_argument("-o", "--output", metavar="OUT.mp4", help="output video (default ./out/<template>.render.mp4)")
     p.add_argument("--size", type=_parse_size, metavar="WxH", help="output size, e.g. 1080x1920")
     p.add_argument("--fps", type=float, metavar="F", help="output frame rate")
     p.set_defaults(func=cmd_render)
+
+    p = sub.add_parser("fit", help="fit edit templates to a song and write the best fit's AST")
+    p.add_argument("song", help="audio or video file with the music")
+    p.add_argument("templates", nargs="+", metavar="TEMPLATE",
+                   help="edit files (.edit.json / .edit) and/or folders searched for *.edit.json")
+    p.add_argument("-o", "--output", metavar="OUT_DIR", help="output folder (default ./out/fit)")
+    p.add_argument("--top", type=int, default=10, metavar="N", help="templates shown in the ranking (default 10)")
+    p.set_defaults(func=cmd_fit)
 
     p = sub.add_parser("bench", parents=[analysis], help="score the analyzers on synthetic edits with a known AST")
     p.add_argument("--n", type=int, default=5, help="number of cases (default 5)")

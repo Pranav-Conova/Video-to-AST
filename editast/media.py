@@ -265,9 +265,10 @@ def write_wav(path: str | Path, samples: np.ndarray, sr: int) -> Path:
 
 
 def mux_audio(video_path: str | Path, audio_path: str | Path, out_path: str | Path,
-              duration: Optional[float] = None) -> Path:
-    """Copy the video stream and add ``audio_path`` as AAC, trimmed to ``duration``."""
-    args = [ffmpeg_exe(), "-y", "-v", "error", "-nostdin", "-i", str(video_path), "-i", str(audio_path),
+              duration: Optional[float] = None, audio_start: float = 0.0) -> Path:
+    """Copy the video stream and add ``audio_path`` from ``audio_start`` s as AAC, trimmed to ``duration``."""
+    seek = ["-ss", f"{audio_start:.4f}"] if audio_start > 0 else []
+    args = [ffmpeg_exe(), "-y", "-v", "error", "-nostdin", "-i", str(video_path), *seek, "-i", str(audio_path),
             "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k"]
     if duration is not None:
         args += ["-t", f"{duration:.4f}"]
@@ -294,6 +295,7 @@ class VideoWriter:
         height: int,
         fps: float,
         audio_path: str | Path | None = None,
+        audio_start: float = 0.0,
         crf: int = 18,
         preset: str = "veryfast",
     ) -> None:
@@ -303,6 +305,7 @@ class VideoWriter:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.width, self.height, self.fps = width, height, fps
         self.audio_path = Path(audio_path) if audio_path else None
+        self.audio_start = audio_start
         self.frames_written = 0
         self._tmp_dir = tempfile.mkdtemp(prefix="editast_") if self.audio_path else None
         self._video_target = Path(self._tmp_dir) / "video.mp4" if self._tmp_dir else self.path
@@ -332,7 +335,7 @@ class VideoWriter:
             raise MediaError(f"ffmpeg encode failed ({code}): {err[-1500:]}")
         if self.audio_path is not None:
             mux_audio(self._video_target, self.audio_path, self.path,
-                      duration=self.frames_written / self.fps)
+                      duration=self.frames_written / self.fps, audio_start=self.audio_start)
             shutil.rmtree(self._tmp_dir, ignore_errors=True)
         return self.path
 

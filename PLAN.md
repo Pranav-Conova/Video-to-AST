@@ -49,12 +49,13 @@ in the module docstring of `nodes.py` and are binding for all modules.
 | look | `analyzers/look.py` | `analyze_look(ctx, seg) -> LookAnalysis` |
 | text | `analyzers/text.py` | `detect_text(ctx, seg) -> TextAnalysis` |
 | audio | `analyzers/audio.py` | `analyze_audio(ctx) -> AudioAnalysis` |
-| build | `build.py` | `build_edit(ctx, seg, motion, timefx, look, text, audio) -> Edit` (any result may be `None`) |
+| build | `build.py` | `build_edit(ctx, seg, motion, timefx, look, text, audio) -> Edit` (any result may be `None`); `rebeat(edit, config=None) -> Edit` |
 | pipeline | `pipeline.py`, `fetch.py` | `analyze(source, config=None, progress=None) -> AnalysisResult`; `download(url, out_dir) -> Path` |
-| cli | `cli.py`, `__main__.py` | `editast analyze | show | render | bench | compare | schema | fetch | batch` |
+| cli | `cli.py`, `__main__.py` | `editast analyze | show | render | fit | bench | compare | schema | fetch | batch` |
 | language | `lang/printer.py`, `lang/parser.py` | `to_dsl(edit, compact=False) -> str`; `parse_dsl(text) -> Edit` (lossless round trip) |
 | reports | `report/html.py`, `report/tree.py` | `write_report(edit, path, ctx=None, signals=None) -> Path`; `build_tree(edit)`, `print_tree(edit, console=None)`, `summary_text(edit) -> str` |
-| render | `render/compiler.py`, `render/sources.py` | `render_edit(edit, sources, out_path, music=None, size=None, fps=None, progress=None) -> Path`; `retime_edit(edit, bpm, offset=0.0) -> Edit`; `VideoClipSource`, `SyntheticSource` |
+| render | `render/compiler.py`, `render/sources.py` | `render_edit(edit, sources, out_path, music=None, size=None, fps=None, progress=None, music_start=0.0) -> Path`; `retime_edit(edit, bpm, offset=0.0) -> Edit`; `warp_edit(edit, warp, k) -> Edit`; `VideoClipSource`, `SyntheticSource` |
+| fit | `fit.py` | `analyze_song(path) -> Song`; `fit_edit(template, song, name='') -> Fit`; `best_fit(templates, song) -> list[Fit]`; `BeatClock`, `song_window(music, start, duration)` |
 | bench | `bench/generate.py`, `bench/evaluate.py` | `generate_case(seed, out_dir, ...) -> (Path, Edit)`; `generate_suite(out_dir, n, seed)`; `compare(truth, pred) -> dict`; `similarity(a, b) -> float`; `format_report(report) -> str` |
 
 ## Milestones

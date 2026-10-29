@@ -769,18 +769,20 @@ def render_edit(
     size: Optional[Size] = None,
     fps: Optional[float] = None,
     progress: Optional[ProgressFn] = None,
+    music_start: float = 0.0,
 ) -> Path:
     """Render ``edit`` with footage from ``sources`` into an H.264 MP4 at ``out_path``.
 
     ``sources`` is a :class:`ClipSource` or a list of video paths (cut round-robin
-    by :class:`VideoClipSource`); ``music`` is muxed (trimmed to the video).
+    by :class:`VideoClipSource`); ``music`` is muxed from ``music_start`` seconds
+    (trimmed to the video).
     ``size`` is ``(width, height)``; defaults are described in :func:`output_format`.
     """
     if music is not None and not Path(music).exists():
         raise FileNotFoundError(f"music file not found: {music}")
     size, fps, _ = output_format(edit, size, fps)
     out_path = Path(out_path)
-    with VideoWriter(out_path, size[0], size[1], fps, audio_path=music) as writer:
+    with VideoWriter(out_path, size[0], size[1], fps, audio_path=music, audio_start=music_start) as writer:
         for frame in render_frames(edit, sources, size, fps, progress):
             writer.write(frame)
     if progress is not None:
@@ -802,21 +804,35 @@ def retime_edit(edit: Edit, bpm: float, offset: float = 0.0) -> Edit:
     starts at 0, and shots squeezed to nothing are dropped). Edits without a
     music BPM come back as an unchanged copy.
     """
-    out = edit.model_copy(deep=True)
-    music = out.music
+    music = edit.music
     if music is None or not music.bpm or bpm <= 0:
-        return out
+        return edit.model_copy(deep=True)
     old_offset = music.beat_offset if music.beat_offset is not None else (music.beats[0] if music.beats else 0.0)
     k = music.bpm / bpm
+    out = warp_edit(edit, lambda t: offset + (t - old_offset) * k, k)
+    assert out.music is not None
+    out.music.bpm = float(bpm)
+    out.music.beat_offset = float(offset)
+    out.provenance = {**out.provenance, "retimed": {"from_bpm": edit.music.bpm, "to_bpm": float(bpm),
+                                                    "offset": float(offset)}}
+    return out
 
-    def raw(t: float) -> float:
-        return offset + (t - old_offset) * k
+
+def warp_edit(edit: Edit, warp: Callable[[float], float], k: float) -> Edit:
+    """Deep copy of ``edit`` with every time ``t`` moved to ``warp(t)``.
+
+    ``warp`` must be increasing; ``k`` is its overall slope, used for durations,
+    rates and curve sample spacing. Clamping at 0 works as in :func:`retime_edit`,
+    which is the linear case. The music keeps its tempo: callers set it.
+    """
+    out = edit.model_copy(deep=True)
+    music = out.music
 
     def m(t: float) -> float:
-        return max(0.0, raw(t))
+        return max(0.0, warp(t))
 
     def events(times: list[float]) -> list[float]:
-        return [raw(t) for t in times if raw(t) >= 0.0]
+        return [warp(t) for t in times if warp(t) >= 0.0]
 
     fps_a = out.media.analysis_fps or 30.0
     for node in out.walk():
@@ -838,13 +854,14 @@ def retime_edit(edit: Edit, bpm: float, offset: float = 0.0) -> Edit:
         pat.start = m(pat.start) if pat.start is not None else None
         pat.end = m(pat.end) if pat.end is not None else None
 
-    music.bpm = float(bpm)
-    music.beat_offset = raw(old_offset)
-    music.beats, music.downbeats, music.onsets = events(music.beats), events(music.downbeats), events(music.onsets)
-    music.drops = [d.model_copy(update={"time": raw(d.time)}) for d in music.drops if raw(d.time) >= 0.0]
-    music.sections = [s for s in music.sections if s.end > s.start]
-    if music.energy is not None:
-        music.energy.t0, music.energy.dt = raw(music.energy.t0), music.energy.dt * k
+    if music is not None:
+        if music.beat_offset is not None:
+            music.beat_offset = warp(music.beat_offset)
+        music.beats, music.downbeats, music.onsets = events(music.beats), events(music.downbeats), events(music.onsets)
+        music.drops = [d.model_copy(update={"time": warp(d.time)}) for d in music.drops if warp(d.time) >= 0.0]
+        music.sections = [s for s in music.sections if s.end > s.start]
+        if music.energy is not None:
+            music.energy.t0, music.energy.dt = warp(music.energy.t0), music.energy.dt * k
 
     if out.stats is not None:
         st = out.stats
@@ -856,7 +873,7 @@ def retime_edit(edit: Edit, bpm: float, offset: float = 0.0) -> Edit:
         st.hook_duration *= k
         st.first_cut_time = m(st.first_cut_time) if st.first_cut_time is not None else None
         if st.pacing is not None:
-            st.pacing.t0, st.pacing.dt = raw(st.pacing.t0), st.pacing.dt * k
+            st.pacing.t0, st.pacing.dt = warp(st.pacing.t0), st.pacing.dt * k
             st.pacing.values = [v / k for v in st.pacing.values]
 
     _drop_collapsed(out)
@@ -870,8 +887,6 @@ def retime_edit(edit: Edit, bpm: float, offset: float = 0.0) -> Edit:
     else:
         out.media.duration = m(edit.media.duration)
     out.media.n_frames = int(round(out.media.duration * fps_a))
-    out.provenance = {**out.provenance, "retimed": {"from_bpm": edit.music.bpm, "to_bpm": float(bpm),
-                                                    "offset": float(offset)}}
     return out
 
 

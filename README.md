@@ -8,7 +8,7 @@ Drop in a TikTok, Reel, Short or trailer. Get back every cut, beat, zoom, whip, 
 Then replay that edit on **your own footage and music**.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-385%20passing-brightgreen)](#-accuracy)
+[![Tests](https://img.shields.io/badge/tests-396%20passing-brightgreen)](#-accuracy)
 [![Benchmark](https://img.shields.io/badge/benchmark-0.994%20overall-blueviolet)](#-accuracy)
 [![Runs offline](https://img.shields.io/badge/runs-100%25%20offline%20on%20CPU-orange)](#-install)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
@@ -35,7 +35,7 @@ Every viral edit follows a recipe: *hold the hook, build, then cut on every beat
 
 - 🔍 **Learn** exactly how a viral edit was built: every cut, effect and transition, aligned to the beat.
 - 📊 **Analyze at scale**: run 100 videos and find what the top performers have in common.
-- 🔁 **Re-create**: use any edit as a template and render it with your clips, re-timed to a new song.
+- 🔁 **Re-create**: pick a song, let `fit` choose the edit that suits it, and render it with your clips on the song's beats.
 - 🧪 **Diff and compare**: two edits, two versions, or your edit against the one that went viral.
 
 It is the difference between *"this edit feels fast"* and *"this edit cuts every beat at 116 BPM after a 4.3 s hook, with a zoom transition and RGB split on the drop."*
@@ -133,7 +133,8 @@ editast analyze "https://..."       # any URL yt-dlp supports: YouTube, TikTok, 
 editast show out/clip/clip.edit.json --format tree   # tree | dsl | compact | json | summary
 editast batch videos/ -o out/batch  # what do many viral edits have in common?
 editast compare a.edit.json b.edit.json             # structural similarity of two edits
-editast render out/clip/clip.edit.json --clips my_footage/ --music song.mp3 --retime -o remix.mp4
+editast fit song.mp3 examples/youtube-car-edits   # rank edits as templates for a song, write the best one's AST
+editast render out/clip/clip.edit.json --clips my_footage/ --music song.mp3 --fit -o remix.mp4
 editast bench --n 5                 # score the analyzers on synthetic ground truth
 editast schema -o edit.schema.json  # JSON Schema of the Edit AST
 ```
@@ -142,10 +143,17 @@ editast schema -o edit.schema.json  # JSON Schema of the Edit AST
 
 ```bash
 editast analyze viral.mp4
-editast render out/viral/viral.edit.json --clips my_footage/ --music my_song.mp3 --retime -o mine.mp4
+editast render out/viral/viral.edit.json --clips my_footage/ --music my_song.mp3 --fit -o mine.mp4
 ```
 
-`--retime` re-fits every cut and effect to your song's tempo, so the structure of the viral edit lands on *your* beats. The loop is tested end to end: analyze → re-time → render → analyze again recovers the new song's tempo and every cut.
+`--fit` moves every cut and effect onto your song's detected beats and starts the song where the viral edit's drop lands on your song's drop, so the structure of the edit hits *your* beats. (`--retime` only changes the tempo.) The loop is tested end to end: analyze → re-time → render → analyze again recovers the new song's tempo and every cut.
+
+Not sure which edit suits your song? Give `fit` a folder of analysed edits and it ranks them by how little each has to be stretched or trimmed:
+
+```bash
+editast fit my_song.mp3 examples/youtube-car-edits -o out/fit
+editast render out/fit/my_song.<best>.edit.json --clips my_footage/ --music my_song.mp3 --music-start <S> -o mine.mp4
+```
 
 ### 🐍 Use it from Python
 
@@ -187,7 +195,7 @@ flowchart LR
    - `text`: caption detection and tracking, with OCR via RapidOCR (offline)
    - `audio`: tempo, dynamic-programming beat tracking, downbeats, drops and sections (numpy/scipy only)
 3. **Build**: sections, beat alignment, source-clip grouping, pattern inference and stats.
-4. **Render** (the inverse direction): apply an AST as a template to your own clips, optionally re-timed to a new song.
+4. **Fit and render** (the inverse direction): fit an AST to a song you pick, then apply it as a template to your own clips. Fitting follows the song's detected beats, so cuts stay on the beat, and starts the song where the template's drop lands on a drop of the song. Given several templates, `fit` ranks them by how well each fits the song.
 5. **Bench**: generate synthetic edits with a *known* AST, render them, analyze them, and score recovered vs. true AST.
 
 No GPU, no cloud API, no API keys. A 52 s trailer is fully analyzed in about **25 s on a laptop CPU**.
@@ -258,7 +266,7 @@ Have an idea? [Open an issue](https://github.com/Pranav-Conova/video-reverse-eng
 Contributions are welcome, especially new analyzers, better accuracy on real-world edits, and new example datasets.
 
 ```bash
-python -m pytest                                  # 385 tests
+python -m pytest                                  # 396 tests
 EDITAST_REAL_TESTS=1 python -m pytest -k sintel   # also score the real Sintel trailer (downloads ~4 MB)
 editast bench --n 5                               # check your change against the benchmark
 ```

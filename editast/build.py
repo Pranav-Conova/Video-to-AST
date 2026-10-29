@@ -228,6 +228,41 @@ def build_edit(
     return assign_ids(edit)
 
 
+def rebeat(edit: Edit, config: Optional[AnalysisConfig] = None) -> Edit:
+    """Re-derive what depends on the music after ``edit.music`` was replaced (in place).
+
+    Beat alignment (step 4), section energies, patterns and stats are computed
+    again against the new music; shots, transitions, effects and section roles
+    are kept. :mod:`editast.fit` uses it after moving an edit onto another song.
+    """
+    cfg = _Settings.from_config(config or AnalysisConfig())
+    shots = edit.shots()
+    total = edit.media.duration
+    index = {s.id: i for i, s in enumerate(shots)}
+    fade_in = fade_out = None
+    cuts: dict[int, Transition] = {}
+    for tr in edit.transitions():
+        if tr.from_shot is None:
+            fade_in = tr
+        elif tr.to_shot is None:
+            fade_out = tr
+        elif tr.to_shot in index:
+            cuts[index[tr.to_shot]] = tr
+    grid = _BeatGrid.from_music(edit.music, cfg.beat_tolerance)
+    if grid is not None:
+        _align_to_beats(grid, shots, fade_in, cuts, fade_out, total)
+    else:
+        for node in [*shots, *edit.transitions()]:
+            node.beat_offset = node.on_beat = None
+        for shot in shots:
+            shot.beats = None
+    for sec in edit.timeline.sections:
+        sec.energy = _mean_energy(edit.music, sec.start, sec.end)
+    edit.patterns = _patterns(edit, grid, cfg)
+    edit.stats = _stats(edit, total)
+    return assign_ids(edit)
+
+
 # =========================================================================== shots & transitions
 
 
